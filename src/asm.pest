@@ -1,0 +1,216 @@
+program = { SOI ~ statement* ~ EOI }
+
+dec_number = @{ "-"? ~ ASCII_DIGIT+ }
+hex_number = @{ "$" ~ "-"? ~ (ASCII_HEX_DIGIT)+ }
+bin_number = @{ "%" ~ "-"? ~ (ASCII_BIN_DIGIT)+ }
+oct_number = @{ "@" ~ "-"? ~ (ASCII_OCT_DIGIT)+ }
+
+number     = _{ hex_number | bin_number | oct_number | dec_number | symbol }
+bin_op     = _{ add_op | subtract | multiply | divide | modulo | and_op | or_op | rshift | lshift }
+add_op     =  { "+" }
+subtract   =  { "-" }
+multiply   =  { "*" }
+divide     =  { "/" }
+modulo     =  { "\\" }
+and_op     =  { "&" }
+or_op      =  { "!" }
+rshift     =  { ">>" }
+lshift     =  { "<<" }
+prefix_op  = _{ neg_op | not_op }
+neg_op     =  { "-" }
+not_op     =  { "~" }
+atom       =  { number | "(" ~ expression ~ ")" }
+expression =  { prefix_op* ~ atom ~ (bin_op ~ prefix_op* ~ atom)* }
+
+escaped_chars = _{ "\\" | "'" | "n" | "r" | "0" }
+escape_seq    = @{ "\\" ~ escaped_chars }
+string        = ${ "'" ~ (escape_seq | (!"'" ~ ANY))* ~ "'" }
+
+symbol    = @{ (!((^"D" | ^"A") ~ '0'..'7')) ~ (ASCII_ALPHA | ".") ~ (ASCII_ALPHANUMERIC | "." | "_" | "$")* }
+sol_label = ${ symbol ~ ":"? }
+
+org = { (^"ORG" | (sol_label? ~ ^"ORG")) ~ expression }
+equ = { sol_label ~ ^"EQU" ~ expression }
+
+size            =  { ^".B" | ^".W" | ^".L" }
+dc_mnemonic     = ${ ^"DC" ~ size? }
+dc_item         = _{ expression | string }
+define_constant =  { (dc_mnemonic | (sol_label ~ dc_mnemonic)) ~ dc_item ~ ("," ~ dc_item)* }
+
+ds_mnemonic    = ${ ^"DS" ~ size? }
+define_storage =  { (ds_mnemonic | (sol_label ~ ds_mnemonic)) ~ expression }
+// TODO SET, REG, DCB
+include_file = @{ (!EOL ~ ANY)* ~ EOL }
+include      =  { ^"INCLUDE" ~ include_file }
+
+// Instructions
+// Param types
+dn                         = @{ ^"D" ~ '0'..'7' }
+an                         = @{ (^"A" ~ '0'..'7') | ^"SP" }
+xn                         =  { dn | an }
+absolute                   =  { expression }
+d8                         =  { expression }
+d16                        =  { expression }
+pc_relative                = ${ d16 ~ ^"(PC)" }
+pc_relative_multiple       = ${ d8 ~ ^"(PC," ~ xn ~ size? ~ ")" }
+pc_relative_multiple_label = ${ label ~ "(" ~ xn ~ size? ~ ")" }
+indirect                   = ${ "(" ~ an ~ ")" }
+indirect_predec            = ${ "-(" ~ an ~ ")" }
+indirect_postinc           = ${ "(" ~ an ~ ")+" }
+relative                   = ${ d16 ~ ^"(" ~ an ~ ")" }
+relative_multiple          = ${ d8 ~ ^"(" ~ an ~ "," ~ xn ~ size? ~ ")" }
+immeddiate                 = ${ "#" ~ expression }
+// implicit             = ${ ^"SR" | ^"USP" | ^"PC" | ^"VBR" | ^"SFC" | ^"DFC" }
+
+bitb      = ${ "#" ~ ('0'..'7' | expression) }
+bitw      = ${ "#" ~ ('0'..'9' | ("1" ~ '0'..'5') | expression) }
+bitl      = ${ "#" ~ ('0'..'9' | ('0'..'2' ~ '0'..'9') | ("3" ~ '0'..'1') | expression) }
+cc        = @{ ^"CC" | ^"CS" | ^"EQ" | ^"F" | ^"GE" | ^"GT" | ^"HI" | ^"LS" | ^"LE" | ^"LT" | ^"MI" | ^"NE" | ^"PL" | ^"T" | ^"VC" | ^"VS" }
+count     =  { '1'..'8' }
+addr      =  { absolute }
+daddr     =  { indirect_postinc | indirect_predec | indirect | relative | relative_multiple | addr }
+maddr     =  { indirect | relative | relative_multiple | addr }
+saddr     =  { indirect_postinc | indirect_predec | indirect | relative | relative_multiple | addr | pc_relative_multiple_label | pc_relative | pc_relative_multiple }
+jaddr     =  { indirect | relative | relative_multiple | addr | pc_relative_multiple_label | pc_relative | pc_relative_multiple }
+label     =  { symbol | absolute }
+data3     =  { immeddiate }
+data8     =  { immeddiate }
+data16    =  { immeddiate }
+data32    =  { immeddiate }
+SR        =  { ^"SR" }
+USP       =  { ^"USP" }
+reg_range = ${ (an ~ ("-" ~ an)?) | (dn ~ ("-" ~ dn)?) }
+reglist   = ${ reg_range ~ ("/" ~ reg_range)* }
+
+// Instructions
+// DATA TRANSFER
+move_b  = { ^"MOVE.B" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (saddr ~ "," ~ daddr) | (dn ~ "," ~ dn) | (data8 ~ "," ~ dn) | (data8 ~ "," ~ daddr)) }
+move_w  = { ^"MOVE.W" ~ ((saddr ~ "," ~ xn) | (xn ~ "," ~ daddr) | (saddr ~ "," ~ daddr) | (xn ~ "," ~ xn) | (data16 ~ "," ~ an) | (data16 ~ "," ~ daddr)) }
+move_l  = { ^"MOVE.L" ~ ((saddr ~ "," ~ xn) | (xn ~ "," ~ daddr) | (saddr ~ "," ~ daddr) | (xn ~ "," ~ xn) | (data32 ~ "," ~ xn) | (data32 ~ "," ~ daddr)) }
+move    = { ^"MOVE" ~ ((an ~ "," ~ USP) | (USP ~ "," ~ an)) }
+exg     = { ^"EXG" ~ xn ~ "," ~ xn }
+link    = { ^"LINK" ~ an ~ "," ~ data16 }
+unlk    = { ^"UNLK" ~ an }
+movem_w = { ^"MOVEM.W" ~ (((indirect_postinc | jaddr) ~ "," ~ reglist) | (reglist ~ "," ~ (indirect_predec | maddr))) }
+movem_l = { ^"MOVEM.L" ~ (((indirect_postinc | jaddr) ~ "," ~ reglist) | (reglist ~ "," ~ (indirect_predec | maddr))) }
+// TODO MOVEP
+// TODO MOVEQ
+lea  = { ^"LEA" ~ jaddr ~ "," ~ an }
+pea  = { ^"PEA" ~ jaddr }
+clr  = { (^"CLR.B" | ^"CLR.W" | ^"CLR.L") ~ (daddr | dn) }
+swap = { ^"SWAP" ~ dn }
+// TODO Scc
+// TODO TAS
+data_transfer = _{ move | move_b | move_w | move_l | movem_w | movem_l | exg | link | unlk | lea | pea | clr | swap }
+
+// ARITHMETIC
+add_b =  { ^"ADD.B" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data8 ~ "," ~ dn) | (data8 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+add_w =  {
+    (^"ADD.W" | ^"ADD") ~ ((saddr ~ "," ~ xn) | (xn ~ "," ~ daddr) | (data16 ~ "," ~ xn /* TODO Check ADDA */
+  ) | (data16 ~ "," ~ daddr) | (xn ~ "," ~ xn))
+}
+add_l =  {
+    ^"ADD.L" ~ ((saddr ~ "," ~ xn) | (xn ~ "," ~ daddr) | (data32 ~ "," ~ xn /* TODO Check ADDA */
+  ) | (data32 ~ "," ~ daddr) | (xn ~ "," ~ xn))
+}
+add   = _{ add_b | add_w | add_l }
+// TODO ADDA
+// TODO ADDQ
+// TODO ADDX
+// TODO ABCD
+// TODO NEG
+// TODO NEGX
+// TODO NBCD
+sub_b =  { ^"SUB.B" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data8 ~ "," ~ dn) | (data8 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+sub_w =  { (^"SUB.W" | ^"SUB") ~ ((saddr ~ "," ~ xn) | (xn ~ "," ~ daddr) | (data16 ~ "," ~ dn) | (data16 ~ "," ~ daddr) | (xn ~ "," ~ xn)) }
+sub_l =  { ^"SUB.L" ~ ((saddr ~ "," ~ xn) | (xn ~ "," ~ daddr) | (data32 ~ "," ~ dn) | (data32 ~ "," ~ daddr) | (xn ~ "," ~ xn)) }
+sub   = _{ sub_b | sub_w | sub_l }
+// TODO SUBA
+// TODO SUBQ
+// TODO SUBX
+// TODO SBCD
+// TODO MULS
+// TODO MULU
+// TODO DIVS
+// TODO DIVU
+// TODO EXT
+cmp_b =  { ^"CMP.B" ~ ((saddr ~ "," ~ dn) | (data8 ~ "," ~ dn) | (data8 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+cmp_w =  { (^"CMP.W" | ^"CMP") ~ ((saddr ~ "," ~ xn) | (data16 ~ "," ~ xn) | (data16 ~ "," ~ daddr) | (xn ~ "," ~ xn)) }
+cmp_l =  { ^"CMP.L" ~ ((saddr ~ "," ~ xn) | (data32 ~ "," ~ xn) | (data32 ~ "," ~ daddr) | (xn ~ "," ~ xn)) }
+cmp   = _{ cmp_b | cmp_w | cmp_l }
+// TODO CMPM
+// TODO TST
+arithmetic = _{ add | sub | cmp }
+// LOGIC
+// TODO NOT
+and_b =  { ^"AND.B" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data8 ~ "," ~ dn) | (data8 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+and_w =  { ^"AND.W" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data16 ~ "," ~ dn) | (data16 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+and_l =  { ^"AND.L" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data32 ~ "," ~ dn) | (data32 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+and   = _{ and_b | and_w | and_l }
+or_b  =  { ^"OR.B" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data8 ~ "," ~ dn) | (data8 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+or_w  =  { ^"OR.W" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data16 ~ "," ~ dn) | (data16 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+or_l  =  { ^"OR.L" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data32 ~ "," ~ dn) | (data32 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+or    = _{ or_b | or_w | or_l }
+eor_b =  { ^"EOR.B" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data8 ~ "," ~ dn) | (data8 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+eor_w =  { ^"EOR.W" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data16 ~ "," ~ dn) | (data16 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+eor_l =  { ^"EOR.L" ~ ((saddr ~ "," ~ dn) | (dn ~ "," ~ daddr) | (data32 ~ "," ~ dn) | (data32 ~ "," ~ daddr) | (dn ~ "," ~ dn)) }
+eor   = _{ eor_b | eor_w | eor_l }
+logic = _{ and | or | eor }
+// SHIFTS
+// TODO ASL
+// TODO ASR
+// TODO LSL
+// TODO LSR
+// TODO ROL
+// TODO ROR
+// TODO ROXL
+// TODO ROXR
+// BIT MANAGEMENT
+btst_b =  { ^"BTST.B" ~ (((bitb | dn) ~ "," ~ (dn | daddr))) }
+btst_w =  { (^"BTST.W" | ^"BTST") ~ (((bitw | dn) ~ "," ~ (dn | daddr))) }
+btst_l =  { ^"BTST.L" ~ (((bitl | dn) ~ "," ~ (dn | daddr))) }
+btst   = _{ btst_b | btst_w | btst_l }
+bset_b =  { ^"BSET.B" ~ (((bitb | dn) ~ "," ~ (dn | daddr))) }
+bset_w =  { (^"BSET.W" | ^"BSET") ~ (((bitw | dn) ~ "," ~ (dn | daddr))) }
+bset_l =  { ^"BSET.L" ~ (((bitl | dn) ~ "," ~ (dn | daddr))) }
+bset   = _{ bset_b | bset_w | bset_l }
+bclr_b =  { ^"BCLR.B" ~ (((bitb | dn) ~ "," ~ (dn | daddr))) }
+bclr_w =  { (^"BCLR.W" | ^"BCLR") ~ (((bitw | dn) ~ "," ~ (dn | daddr))) }
+bclr_l =  { ^"BCLR.L" ~ (((bitl | dn) ~ "," ~ (dn | daddr))) }
+bclr   = _{ bclr_b | bclr_w | bclr_l }
+// TODO BCHG
+bit_mgmnt = _{ btst | bset | bclr }
+// FLOW
+bra           =  { ^"BRA" ~ label }
+jmp           =  { ^"JMP" ~ jaddr }
+bsr           =  { ^"BSR" ~ label }
+jsr           =  { ^"JSR" ~ jaddr }
+rts           =  { ^"RTS" }
+rtr           =  { ^"RTR" }
+rte           =  { ^"RTE" }
+bcc_mnemonic  = ${ ^"B" ~ cc }
+bcc           =  { bcc_mnemonic ~ label }
+dbcc_mnemonic = ${ ^"DB" ~ cc }
+dbcc          =  { dbcc_mnemonic ~ dn ~ "," ~ label }
+// TODO CHK
+// TODO TRAP
+// TODO TRAPV
+flow = _{ bra | jmp | bsr | jsr | rts | rtr | rte | bcc | dbcc }
+// CONTROL
+// TODO MOVE
+// TODO ANDI
+// TODO EORI
+// TODO ORI
+nop     =  { ^"NOP" }
+reset   =  { ^"RESET" }
+stop    =  { ^"STOP" }
+break   =  { ^"BREAK" }
+control = _{ nop | reset | stop | break }
+
+instruction       = _{ data_transfer | arithmetic | logic | bit_mgmnt | flow | control }
+instruction_stmnt =  { (!instruction ~ sol_label)? ~ instruction }
+statement         = _{ org | equ | define_constant | define_storage | include | instruction_stmnt }
+
+EOL        = @{ NEWLINE | &EOI }
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT    = _{ ("*" | ";") ~ (!EOL ~ ANY)* ~ EOL }
