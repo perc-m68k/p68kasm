@@ -1,0 +1,133 @@
+reg_no = {'0'..'7'}
+
+dec_number = @{ "-"? ~ ASCII_DIGIT+ }
+hex_number = @{ "$" ~ "-"? ~ (ASCII_HEX_DIGIT)+ }
+bin_number = @{ "%" ~ "-"? ~ (ASCII_BIN_DIGIT)+ }
+oct_number = @{ "@" ~ "-"? ~ (ASCII_OCT_DIGIT)+ }
+
+number     = _{ hex_number | bin_number | oct_number | dec_number | symbol }
+bin_op     = _{ add_op | subtract | multiply | divide | modulo | and_op | or_op | rshift | lshift }
+add_op     =  { "+" }
+subtract   =  { "-" }
+multiply   =  { "*" }
+divide     =  { "/" }
+modulo     =  { "\\" }
+and_op     =  { "&" }
+or_op      =  { "!" }
+rshift     =  { ">>" }
+lshift     =  { "<<" }
+prefix_op  = _{ neg_op | not_op }
+neg_op     =  { "-" }
+not_op     =  { "~" }
+atom       =  { number | "(" ~ expression ~ ")" }
+expression =  !{ prefix_op* ~ atom ~ (bin_op ~ prefix_op* ~ atom)* }
+
+escaped_chars = _{ "\\" | "'" | "n" | "r" | "0" }
+escape_seq    = @{ "\\" ~ escaped_chars }
+string        = ${ "'" ~ (escape_seq | (!"'" ~ ANY))* ~ "'" }
+
+symbol    = @{ (ASCII_ALPHA | ".") ~ (ASCII_ALPHANUMERIC | "." | "_" | "$")* }
+
+
+d16 =  { expression }
+// effective adressing modes
+/// Data Register Direct Mode
+/// EA Mode = 000
+/// EA Reg field = Reg number
+/// No. extension words = 0
+Dn = ${^"D"~reg_no}
+
+/// Address Register Direct Mode
+/// EA Mode = 001
+/// EA Reg field = Reg number
+/// No. extension words = 0
+An = ${^"A"~reg_no}
+
+
+/// Address Register Indirect Mode
+/// EA Mode = 010
+/// EA Reg field = Reg number
+/// No. extension words = 0
+address_indirect = ${^"(A" ~ reg_no ~ ")"}
+
+/// Address Register Indirect with Postincrement Mode
+/// EA Mode = 011
+/// EA Reg field = Reg number
+/// No. extension words = 0
+address_indirect_postinc = ${^"(A" ~ reg_no ~ ")+"}
+
+/// Address Register Indirect with Predecrement Mode
+/// EA Mode = 100
+/// EA Reg field = Reg number
+/// No. extension words = 0
+address_indirect_predecr = ${^"-(A" ~ reg_no ~ ")"}
+
+///  Address Register Indirect with Displacement Mode
+/// EA Mode = 101
+/// EA Reg field = Reg number
+/// No. extension words = 1 (displacement)
+address_indirect_disp = ${d16~^"(A" ~ reg_no ~ ")"}
+
+// TODO 2.2.7
+// TODO 2.2.8
+// TODO 2.2.9
+// TODO 2.2.10
+// TODO 2.2.11
+// TODO 2.2.12
+// TODO 2.2.13
+// TODO 2.2.14
+// TODO 2.2.15
+
+/// Absolute Short Addressing Mode
+/// EA Mode = 111
+/// EA Reg field = 000
+/// No. extension words = 1 (short addr)
+absolute_short = ${ "(" ~ expression ~ ^").W" }
+
+/// Absolute Long Addressing Mode (for .L)
+/// EA Mode = 111
+/// EA Reg field = 001
+/// No. extension words = 2 (high addr, low addr)
+absolute_long = ${ ("(" ~ expression ~ ^").L") | ("(" ~ expression ~ ^")") }
+
+/// Immediate Data
+/// EA Mode = 111
+/// EA Reg field = 100
+/// No. extension words = 1,2,4, or 6
+immediate_data = ${ "#" ~ expression }
+
+src_ea = {absolute_short | absolute_long | Dn | An | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr | immediate_data}
+dst_ea = {absolute_short | absolute_long | Dn | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr}
+word_size = {^".W" | ^".L"}
+int_size = @{^".B" | word_size}
+Rn = {An | Dn} // FIXME floating point
+
+// Data movement instructions
+// TODO EXG
+// TODO FMOVE family
+// TODO LEA
+// TODO LINK
+
+MOVE_mnemonic = ${^"MOVE" ~ int_size?}
+/// Format: 00[SIZE 2][DST [REG 3][MODE 3]][SRC [MODE 3][REG 3]]
+MOVE = {MOVE_mnemonic ~ src_ea ~ "," ~ dst_ea}
+
+MOVEA_mnemonic = ${(^"MOVEA" | ^"MOVE") ~ word_size?}
+/// Format: 00[SIZE 2][DSTREG 3]001[SRC [MODE 3][REG 3]]
+/// (Allows for use with MOVE Mnemonic)
+MOVEA = {MOVEA_mnemonic ~ src_ea ~ "," ~ An}
+
+/// Format 0100001011[SRC [MODE 3][REG 3]]
+MOVE_FROM_CCR = {^"MOVE" ~ ^"CCR" ~ "," ~ dst_ea}
+
+/// Format 0100010011[SRC [MODE 3][REG 3]]
+MOVE_TO_CCR = {^"MOVE" ~ src_ea ~ "," ~ ^"CCR"}
+
+/// Format 0100000011[SRC [MODE 3][REG 3]]
+MOVE_FROM_SR = {^"MOVE" ~ ^"SR" ~ "," ~ dst_ea}
+
+data_movement_instr = _{MOVE | MOVEA | MOVE_FROM_CCR | MOVE_TO_CCR | MOVE_FROM_SR}
+
+EOL        = @{ NEWLINE | &EOI }
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT    = _{ ("*" | ";") ~ (!EOL ~ ANY)* ~ EOL }
