@@ -1,4 +1,4 @@
-reg_no = {'0'..'7'}
+reg_no = { '0'..'7' }
 
 dec_number = @{ "-"? ~ ASCII_DIGIT+ }
 hex_number = @{ "$" ~ "-"? ~ (ASCII_HEX_DIGIT)+ }
@@ -20,53 +20,53 @@ prefix_op  = _{ neg_op | not_op }
 neg_op     =  { "-" }
 not_op     =  { "~" }
 atom       =  { number | "(" ~ expression ~ ")" }
-expression =  !{ prefix_op* ~ atom ~ (bin_op ~ prefix_op* ~ atom)* }
+expression = !{ prefix_op* ~ atom ~ (bin_op ~ prefix_op* ~ atom)* }
 
 escaped_chars = _{ "\\" | "'" | "n" | "r" | "0" }
 escape_seq    = @{ "\\" ~ escaped_chars }
 string        = ${ "'" ~ (escape_seq | (!"'" ~ ANY))* ~ "'" }
 
 symbol    = @{ (ASCII_ALPHA | ".") ~ (ASCII_ALPHANUMERIC | "." | "_" | "$")* }
+reg_range = ${ (An ~ ("-" ~ An)?) | (Dn ~ ("-" ~ Dn)?) }
+reglist   = ${ reg_range ~ ("/" ~ reg_range)* }
 
-
-d16 =  { expression }
+d16 = { expression }
 // effective adressing modes
 /// Data Register Direct Mode
 /// EA Mode = 000
 /// EA Reg field = Reg number
 /// No. extension words = 0
-Dn = ${^"D"~reg_no}
+Dn = ${ ^"D" ~ reg_no }
 
 /// Address Register Direct Mode
 /// EA Mode = 001
 /// EA Reg field = Reg number
 /// No. extension words = 0
-An = ${^"A"~reg_no}
-
+An = ${ ^"A" ~ reg_no }
 
 /// Address Register Indirect Mode
 /// EA Mode = 010
 /// EA Reg field = Reg number
 /// No. extension words = 0
-address_indirect = ${^"(A" ~ reg_no ~ ")"}
+address_indirect = ${ ^"(A" ~ reg_no ~ ")" }
 
 /// Address Register Indirect with Postincrement Mode
 /// EA Mode = 011
 /// EA Reg field = Reg number
 /// No. extension words = 0
-address_indirect_postinc = ${^"(A" ~ reg_no ~ ")+"}
+address_indirect_postinc = ${ ^"(A" ~ reg_no ~ ")+" }
 
 /// Address Register Indirect with Predecrement Mode
 /// EA Mode = 100
 /// EA Reg field = Reg number
 /// No. extension words = 0
-address_indirect_predecr = ${^"-(A" ~ reg_no ~ ")"}
+address_indirect_predecr = ${ ^"-(A" ~ reg_no ~ ")" }
 
-///  Address Register Indirect with Displacement Mode
+/// Address Register Indirect with Displacement Mode
 /// EA Mode = 101
 /// EA Reg field = Reg number
 /// No. extension words = 1 (displacement)
-address_indirect_disp = ${d16~^"(A" ~ reg_no ~ ")"}
+address_indirect_disp = ${ d16 ~ ^"(A" ~ reg_no ~ ")" }
 
 // TODO 2.2.7
 // TODO 2.2.8
@@ -96,37 +96,150 @@ absolute_long = ${ ("(" ~ expression ~ ^").L") | ("(" ~ expression ~ ^")") }
 /// No. extension words = 1,2,4, or 6
 immediate_data = ${ "#" ~ expression }
 
-src_ea = {absolute_short | absolute_long | Dn | An | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr | immediate_data}
-dst_ea = {absolute_short | absolute_long | Dn | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr}
-word_size = {^".W" | ^".L"}
-int_size = @{^".B" | word_size}
-Rn = {An | Dn} // FIXME floating point
+src_ea    = _{ absolute_short | absolute_long | Dn | An | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr | immediate_data }
+dst_ea    = _{ absolute_short | absolute_long | Dn | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr }
+word_size =  { ^".W" | ^".L" }
+int_size  = @{ ^".B" | word_size }
+Rn        =  { An | Dn }
+// FIXME floating point
 
-// Data movement instructions
+// ============================ Data movement instructions ==================================================================================================
 // TODO EXG
 // TODO FMOVE family
-// TODO LEA
-// TODO LINK
+/// Format: `0100[REG 3]111[EA [MODE 3][REG 3]]`
+LEA = { ^"LEA" ~ (address_indirect | address_indirect_disp | absolute_short | absolute_long) ~ "," ~ An }
 
-MOVE_mnemonic = ${^"MOVE" ~ int_size?}
-/// Format: 00[SIZE 2][DST [REG 3][MODE 3]][SRC [MODE 3][REG 3]]
-MOVE = {MOVE_mnemonic ~ src_ea ~ "," ~ dst_ea}
+/// Format: `0100111001010[REG 3] // [DISP 16]`
+LINK = { ^"LINK" ~ An ~ "," ~ immediate_data }
 
-MOVEA_mnemonic = ${(^"MOVEA" | ^"MOVE") ~ word_size?}
-/// Format: 00[SIZE 2][DSTREG 3]001[SRC [MODE 3][REG 3]]
-/// (Allows for use with MOVE Mnemonic)
-MOVEA = {MOVEA_mnemonic ~ src_ea ~ "," ~ An}
+MOVE_mnemonic = ${ ^"MOVE" ~ int_size? }
 
-/// Format 0100001011[SRC [MODE 3][REG 3]]
-MOVE_FROM_CCR = {^"MOVE" ~ ^"CCR" ~ "," ~ dst_ea}
+/// Format: `00[SIZE 2][DST [REG 3][MODE 3]][SRC [MODE 3][REG 3]]`
+MOVE = { MOVE_mnemonic ~ src_ea ~ "," ~ dst_ea }
 
-/// Format 0100010011[SRC [MODE 3][REG 3]]
-MOVE_TO_CCR = {^"MOVE" ~ src_ea ~ "," ~ ^"CCR"}
+// TODO MOVE16
 
-/// Format 0100000011[SRC [MODE 3][REG 3]]
-MOVE_FROM_SR = {^"MOVE" ~ ^"SR" ~ "," ~ dst_ea}
+MOVEA_mnemonic = ${ (^"MOVEA" | ^"MOVE") ~ word_size? }
 
-data_movement_instr = _{MOVE | MOVEA | MOVE_FROM_CCR | MOVE_TO_CCR | MOVE_FROM_SR}
+/// Format: `00[SIZE 2][DSTREG 3]001[SRC [MODE 3][REG 3]]`
+///
+/// [^note]: Allows for use with MOVE Mnemonic
+MOVEA = { MOVEA_mnemonic ~ src_ea ~ "," ~ An }
+
+// /// Format 0100001011[SRC [MODE 3][REG 3]]
+// MOVE_FROM_CCR = { ^"MOVE" ~ ^"CCR" ~ "," ~ dst_ea }
+
+// /// Format 0100010011[SRC [MODE 3][REG 3]]
+// MOVE_TO_CCR = { ^"MOVE" ~ src_ea ~ "," ~ ^"CCR" }
+
+// /// Format 0100000011[SRC [MODE 3][REG 3]]
+// MOVE_FROM_SR = { ^"MOVE" ~ ^"SR" ~ "," ~ dst_ea }
+
+MOVEM_mnemonic = ${ ^"MOVEM" ~ word_size? }
+
+/// Format: `00[SIZE 2][DSTREG 3]001[SRC [MODE 3][REG 3]]`
+MOVEM = {
+    MOVEM_mnemonic ~ ((reglist ~ "," ~ (address_indirect | address_indirect_predecr | address_indirect_disp | absolute_short | absolute_long)) | ((address_indirect | address_indirect_postinc | address_indirect_disp | absolute_short | absolute_long) ~ "," ~ reglist))
+}
+
+// TODO MOVEP
+// TODO MOVEQ
+
+/// Format: `0100100001[EA [MODE 3][REG 3]]`
+PEA = { ^"PEA" ~ (address_indirect | address_indirect_disp | absolute_short | absolute_long) }
+
+/// Format: `0100111001011[REG 3]`
+UNLK = { ^"UNLK" ~ An }
+
+data_movement_instr = _{ LEA | LINK | MOVE | MOVEA | MOVEM | PEA | UNLK }
+
+// =================================== Integer arithmetic =========================
+
+ADD_mnemonic = ${ ^"ADD" ~ int_size? }
+
+/// Format: `1101[REG 3][OPMODE 3][EA [MODE 3][REG 3]]`
+///
+/// |        OPMODE | BYTE | WORD | LONG |
+/// |---------------|------|------|------|
+/// | ea + Dn -> Dn | 000  | 001  | 010  |
+/// | Dn + ea -> ea | 100  | 101  | 110  |
+ADD = { ADD_mnemonic ~ ((Dn ~ "," ~ (address_indirect | address_indirect_postinc | address_indirect_predecr | address_indirect_disp | absolute_short | absolute_long)) | (src_ea ~ "," ~ Dn)) }
+
+ADDA_mnemonic = ${ (^"ADDA" | ^"ADD") ~ word_size? }
+
+/// Format: `1101[REG 3][OPMODE 3][EA [MODE 3][REG 3]]`
+///
+/// OPMODE: 011 -> word ; 111 -> Long
+ADDA = { ADDA_mnemonic ~ src_ea ~ "," ~ An }
+
+ADDI_mnemonic = ${ (^"ADDI" | ^"ADD") ~ int_size? }
+
+/// Format: `00000110[SIZE 2][EA [MODE 3][REG 3]]`
+ADDI = { ADDI_mnemonic ~ immediate_data ~ "," ~ dst_ea }
+
+// TODO ADDQ
+// TODO ADDX
+// TODO CLR
+
+CMP_mnemonic = ${ ^"CMP" ~ int_size? }
+
+/// Format: `1011[REG 3][OPMODE 3][EA [MODE 3][REG 3]]`
+///
+/// OPMODE: 000 -> Byte ; 001 -> word ; 010 -> Long
+CMP = { CMP_mnemonic ~ src_ea ~ "," ~ Dn }
+
+CMPA_mnemonic = ${ (^"CMPA" | ^"CMP") ~ word_size? }
+
+/// Format: `1011[REG 3][OPMODE][EA [MODE 3][REG 3]]`
+///
+/// OPMODE: 011 -> word ; 111 -> Long
+CMPA = { CMPA_mnemonic ~ src_ea ~ "," ~ An }
+
+CMPI_mnemonic = ${ (^"CMPI" | ^"CMP") ~ int_size? }
+
+/// Format: `00001100[SIZE 2][EA [MODE 3][REG 3]]`
+CMPI = { CMPI_mnemonic ~ immediate_data ~ "," ~ dst_ea }
+
+// TODO CMPM
+// TODO CMP2
+// TODO DIV family
+// TODO EXT family
+// TODO MUL family
+// TODO NEG family
+
+SUB_mnemonic = ${ ^"SUB" ~ int_size? }
+
+/// Format: `1001[REG 3][OPMODE 3][EA [MODE 3][REG 3]]`
+///
+/// |        OPMODE | BYTE | WORD | LONG |
+/// |---------------|------|------|------|
+/// | Dn - ea -> Dn | 000  | 001  | 010  |
+/// | ea - Dn -> ea | 100  | 101  | 110  |
+SUB = { SUB_mnemonic ~ ((Dn ~ "," ~ (address_indirect | address_indirect_postinc | address_indirect_predecr | address_indirect_disp | absolute_short | absolute_long)) | (src_ea ~ "," ~ Dn)) }
+
+SUBA_mnemonic = ${ (^"SUBA" | ^"SUB") ~ word_size? }
+
+/// Format: `1001[REG 3][OPMODE 3][EA [MODE 3][REG 3]]`
+///
+/// OPMODE: 011 -> word ; 111 -> Long
+SUBA = { SUBA_mnemonic ~ src_ea ~ "," ~ An }
+
+SUBI_mnemonic = ${ (^"SUBI" | ^"SUB") ~ int_size? }
+
+/// Format: `00000100[SIZE 2][EA [MODE 3][REG 3]]`
+SUBI = { SUBI_mnemonic ~ immediate_data ~ "," ~ dst_ea }
+
+// TODO SUBQ
+// TODO SUBX
+
+int_arithmetic_instr = _{ADD | ADDA | ADDI | CMP | CMPA | CMPI | SUB | SUBA | SUBI}
+
+
+instr = _{data_movement_instr | int_arithmetic_instr}
+sol_label = ${ symbol ~ ":"? }
+instruction =  { (!instr ~ sol_label)? ~ instr }
+statement = {instruction}
+program = {SOI ~ statement* ~ EOI}
 
 EOL        = @{ NEWLINE | &EOI }
 WHITESPACE = _{ " " | "\t" | NEWLINE }
