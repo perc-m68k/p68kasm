@@ -238,7 +238,13 @@ int_arithmetic_instr = _{ADD | ADDA | ADDI | CMP | CMPA | CMPI | SUB | SUBA | SU
 instr = _{data_movement_instr | int_arithmetic_instr}
 sol_label = ${ symbol ~ ":"? }
 instruction =  { (!instr ~ sol_label)? ~ instr }
-statement = {instruction}
+
+// PSEUDOINSTR
+org = { (^"ORG" | (sol_label? ~ ^"ORG")) ~ expression }
+equ = { sol_label ~ ^"EQU" ~ expression }
+
+
+statement = {org | equ | instruction}
 program = {SOI ~ statement* ~ EOI}
 
 EOL        = @{ NEWLINE | &EOI }

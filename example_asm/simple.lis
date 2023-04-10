@@ -1,10 +1,10 @@
-00000000                                     1  	*ORG $40
-00000000  163C 0001                          2  Hola: MOVE.B #1,D3
-00000004  4E56 FFF8                          3  	  LINK A6,#-8
-00000008  4E5E                               4  	  UNLK A6
-0000000A                                     5  	*ORG $0
-0000000A  383C 0002                          6  	  MOVE.W #2,D4
-0000000E                                     7  
+00000040                                     1  	ORG $40
+00000040  163C 0001                          2  	MOVE.B #1,D3
+00000044  4E56 FFF8                          3  CODE: LINK A6,#-8
+00000048  4E5E                               4  	UNLK A6
+00000004                                     5  	ORG CODE-$40
+00000004  383C 0044                          6  	MOVE.W #CODE,D4
+00000008                                     7  
 
 No errors detected
 No warnings generated
