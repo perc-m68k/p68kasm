@@ -243,8 +243,16 @@ instruction =  { (!instr ~ sol_label)? ~ instr }
 org = { (^"ORG" | (sol_label? ~ ^"ORG")) ~ expression }
 equ = { sol_label ~ ^"EQU" ~ expression }
 
+dc_mnemonic     = ${ ^"DC" ~ int_size? }
+dc_item         = _{ expression | string }
+define_constant =  { (dc_mnemonic | (sol_label ~ dc_mnemonic)) ~ dc_item ~ ("," ~ dc_item)* }
 
-statement = {org | equ | instruction}
+ds_mnemonic    = ${ ^"DS" ~ int_size? }
+define_storage =  { (ds_mnemonic | (sol_label ~ ds_mnemonic)) ~ expression }
+
+pseudo_instr = _{org | equ | define_constant | define_storage}
+
+statement = {pseudo_instr | instruction}
 program = {SOI ~ statement* ~ EOI}
 
 EOL        = @{ NEWLINE | &EOI }

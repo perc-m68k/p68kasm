@@ -1,7 +1,13 @@
-	ORG $40
-	MOVE.B #1,D3
-CODE: LINK A6,#-8
+	ORG	$0 
+SP: DC.L	$8000          * Stack pointer value after a reset
+	DC.L	START          * Program counter value after a reset
+	DC.B 1,2,3
+	MOVE.B #1,D0
+
+	ORG	$2000		*Start at location 2000 Hex
+START: MOVE.B #START+1,D3
+	LINK A6,#-8
 	UNLK A6
-	ORG CODE-$40
-	MOVE.W #CODE,D4
+	* ORG START-$40
+	MOVE.W #START,D4
 

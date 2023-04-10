@@ -1,10 +1,16 @@
-00000040                                     1  	ORG $40
-00000040  163C 0001                          2  	MOVE.B #1,D3
-00000044  4E56 FFF8                          3  CODE: LINK A6,#-8
-00000048  4E5E                               4  	UNLK A6
-00000004                                     5  	ORG CODE-$40
-00000004  383C 0044                          6  	MOVE.W #CODE,D4
-00000008                                     7  
+00000000                                     1  	ORG	$0 
+00000000  00008000                           2  SP: DC.L	$8000          * Stack pointer value after a reset
+00000004  00002000                           3  	DC.L	START          * Program counter value after a reset
+00000008  01 02 03                           4  	DC.B 1,2,3
+0000000C  103C 0001                          5  	MOVE.B #1,D0
+00000010                                     6  
+00002000                                     7  	ORG	$2000		*Start at location 2000 Hex
+00002000  163C 0001                          8  START: MOVE.B #START+1,D3
+00002004  4E56 FFF8                          9  	LINK A6,#-8
+00002008  4E5E                              10  	UNLK A6
+0000200A                                    11  	* ORG START-$40
+0000200A  383C 2000                         12  	MOVE.W #START,D4
+0000200E                                    13  
 
 No errors detected
 No warnings generated

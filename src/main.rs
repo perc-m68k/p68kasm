@@ -1,11 +1,16 @@
-use std::{collections::HashMap, path::{PathBuf, Path}};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
-use codegen::{statements, code_for_statement, symbols::NonFailingMap};
+use codegen::{code_for_statement, statements, symbols::NonFailingMap};
 use parser::{ASMParser, Rule};
 use pest::Parser;
 
-mod parser;
+use crate::codegen::srec::SRec;
+
 mod codegen;
+mod parser;
 
 type FileId = PathBuf;
 
@@ -23,7 +28,8 @@ fn main() {
             let mut pc = 0;
             for s in statements.clone() {
                 // let span = s.as_span();
-                let (label, start_addr, code) = code_for_statement(s, &NonFailingMap(&symbols), &file.display());
+                let (label, start_addr, code) =
+                    code_for_statement(s, pc,&NonFailingMap(&symbols), &file.display());
                 pc = start_addr.unwrap_or(pc);
                 if let Some(label) = label {
                     let label_span = label.into_inner().next().unwrap();
@@ -37,7 +43,7 @@ fn main() {
             pc = 0;
             for s in statements {
                 let span = s.as_span();
-                let (label, start_addr, code) = code_for_statement(s, &symbols, &file.display());
+                let (label, start_addr, code) = code_for_statement(s, pc, &symbols, &file.display());
                 pc = start_addr.unwrap_or(pc);
                 if let Some(label) = label {
                     let label_span = label.into_inner().next().unwrap();
@@ -52,29 +58,42 @@ fn main() {
                 }
                 pc += code_len as u32;
             }
-        },
-        Err(e) => println!("{e}")
+        }
+        Err(e) => println!("{e}"),
     }
     if create_listing {
         let mut pc = 0u32;
-        for (line_no, line) in file_str.lines().enumerate().map(|(i,x)| (i+1,x)) {
+        for (line_no, line) in file_str.lines().enumerate().map(|(i, x)| (i + 1, x)) {
             let code = if let Some(&idx) = listing.get(&(&file, line_no)) {
                 let (addr, code) = &code_object[idx];
                 pc = *addr;
                 Some(code)
-            }else{None};
+            } else {
+                None
+            };
             let len = code.as_ref().map(|x| x.len()).unwrap_or(0);
-            println!("{pc:08X}  {:<30} {line_no:>5}  {}", code.into_iter().flatten().scan(0u8, |i, x| {
-                let old_i = *i;
-                *i = (*i + 1) % 2;
-                if old_i == 1 {
-                    Some(format!("{x:02X} "))
-                }else{
-                    Some(format!("{x:02X}"))
-                }
-            }).collect::<String>(), line.trim_end());
+            println!(
+                "{pc:08X}  {:<30} {line_no:>5}  {}",
+                code.into_iter()
+                    .flatten()
+                    .scan(0u8, |i, x| {
+                        let old_i = *i;
+                        *i = (*i + 1) % 2;
+                        if old_i == 1 {
+                            Some(format!("{x:02X} "))
+                        } else {
+                            Some(format!("{x:02X}"))
+                        }
+                    })
+                    .collect::<String>(),
+                line.trim_end()
+            );
             pc += len as u32;
         }
     }
-    
+    println!();
+    println!(
+        "{}",
+        SRec::new(code_object.iter().map(|(a, b)| (*a, b.as_slice())))
+    )
 }
