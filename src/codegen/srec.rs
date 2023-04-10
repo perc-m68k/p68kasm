@@ -175,7 +175,11 @@ fn checksum(code: &[u8], addr_size: usize, addr: usize) -> u8 {
     let res = code.len()
         + 1
         + addr_size
-        + addr.to_be_bytes().into_iter().map(|x| x as usize).sum::<usize>()
+        + addr
+            .to_be_bytes()
+            .into_iter()
+            .map(|x| x as usize)
+            .sum::<usize>()
         + code
             .iter()
             .map(|x| *x as usize)

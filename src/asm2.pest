@@ -250,7 +250,10 @@ define_constant =  { (dc_mnemonic | (sol_label ~ dc_mnemonic)) ~ dc_item ~ ("," 
 ds_mnemonic    = ${ ^"DS" ~ int_size? }
 define_storage =  { (ds_mnemonic | (sol_label ~ ds_mnemonic)) ~ expression }
 
-pseudo_instr = _{org | equ | define_constant | define_storage}
+include_file = @{ (!EOL ~ ANY)* ~ EOL }
+include      =  { ^"INCLUDE" ~ include_file }
+
+pseudo_instr = _{include | org | equ | define_constant | define_storage}
 
 statement = {pseudo_instr | instruction}
 program = {SOI ~ statement* ~ EOI}

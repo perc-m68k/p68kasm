@@ -29,7 +29,11 @@ pub fn code_for_statement<'a, M: SymbolMap, F: Display>(
                     }
                 })
                 .unwrap();
-            (label, IntSize::W.aligned(pc), code_for_instr(instr, symbols, current_file))
+            (
+                label,
+                IntSize::W.aligned(pc),
+                code_for_instr(instr, symbols, current_file),
+            )
         }
         Rule::org => {
             let mut inner = p.into_inner();
@@ -62,7 +66,9 @@ pub fn code_for_statement<'a, M: SymbolMap, F: Display>(
                         Some(first)
                     }
                 })
-                .unwrap().into_inner().next()
+                .unwrap()
+                .into_inner()
+                .next()
                 .map(|p| int_size_to_enum(&p))
                 .unwrap_or_default();
             let mut res = Vec::new();
@@ -70,14 +76,19 @@ pub fn code_for_statement<'a, M: SymbolMap, F: Display>(
                 data_for_item(size, x, symbols, current_file, &mut res);
             }
             (label, size.aligned(pc), res)
-        },
+        }
         Rule::define_storage => todo!(),
         _ => unreachable!(),
     }
 }
 
-fn data_for_item<M : SymbolMap, F: Display>(size: IntSize, pair: Pair<Rule>,symbols: &M,
-    current_file: &F, data: &mut Vec<u8>) {
+fn data_for_item<M: SymbolMap, F: Display>(
+    size: IntSize,
+    pair: Pair<Rule>,
+    symbols: &M,
+    current_file: &F,
+    data: &mut Vec<u8>,
+) {
     match pair.as_rule() {
         Rule::string => todo!(),
         Rule::expression => {
@@ -90,18 +101,18 @@ fn data_for_item<M : SymbolMap, F: Display>(size: IntSize, pair: Pair<Rule>,symb
                         eprintln!("expression @ {current_file}:{}:{} is bigger than expected (byte), truncating", start_pos.0, start_pos.1)
                     }
                     data.push((value & 0xff) as u8);
-                },
+                }
                 IntSize::W => {
                     if value > 0xffff {
                         eprintln!("expression @ {current_file}:{}:{} is bigger than expected (word), truncating", start_pos.0, start_pos.1)
                     }
-                    data.push(((value & 0xff00) >> 8) as u8); 
+                    data.push(((value & 0xff00) >> 8) as u8);
                     data.push((value & 0xff) as u8);
-                },
+                }
                 IntSize::L => data.extend_from_slice(&value.to_be_bytes()),
             }
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
@@ -132,7 +143,7 @@ impl IntSize {
         let m = pc % (*self as u32);
         if m == 0 {
             None
-        }else{
+        } else {
             Some(pc - m + (*self as u32))
         }
     }

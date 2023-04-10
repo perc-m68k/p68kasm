@@ -32,8 +32,6 @@ impl<'a, M: SymbolMap> SymbolMap for NonFailingMap<&'a M> {
     fn get_failing(&self) -> &Self::Failing {
         self.0
     }
-
-    
 }
 
 // impl<'a, M: SymbolMap> SymbolMap for &'a M {

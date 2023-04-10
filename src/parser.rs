@@ -1,4 +1,4 @@
-use std::{fmt::Display};
+use std::fmt::Display;
 
 use once_cell::sync::Lazy;
 use pest::{
@@ -7,7 +7,7 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use crate::{codegen::symbols::SymbolMap};
+use crate::codegen::symbols::SymbolMap;
 
 #[derive(Parser)]
 #[grammar = "asm2.pest"]
