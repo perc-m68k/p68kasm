@@ -234,6 +234,26 @@ SUBI = { SUBI_mnemonic ~ immediate_data ~ "," ~ dst_ea }
 
 int_arithmetic_instr = _{ADD | ADDA | ADDI | CMP | CMPA | CMPI | SUB | SUBA | SUBI}
 
+// TODO LOGICAL instr
+
+// TODO Shift and rotate instr
+
+// TODO Bit manipulation instructions
+
+// TODO Bit field instructions
+
+// TODO Binary coded decimal instructions
+
+// =================================== Program control =========================
+
+cc = { ^"CC" | ^"LS" | ^"CS" | ^"LT" | ^"EQ" | ^"MI" | ^"F" | ^"NE" | ^"GE" | ^"PL" | ^"GT" | ^"T" | ^"HI" | ^"VC" | ^"LE" | ^"VS" }
+small_size = { ^".B" | ^".W" }
+
+Bcc_mnemonic = ${ ^"B" ~ cc ~ small_size?}
+// 
+Bcc = {Bcc_mnemonic ~ symbol }
+
+
 
 instr = _{data_movement_instr | int_arithmetic_instr}
 sol_label = ${ symbol ~ ":"? }
