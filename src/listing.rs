@@ -60,14 +60,16 @@ impl Display for PrintableListing<'_> {
         // println!("{}", self.file.display());
         let mut pc = 0u32;
         for (line_no, line) in self.file_str.lines().enumerate().map(|(i, x)| (i + 1, x)) {
-
             let code = if let Some(&idx) = self.listing.0.get(&(self.file, line_no)) {
                 let (addr, code) = match idx {
-                    CodeRef::Ref(idx) => {let (a, b) = &self.code_object[idx]; (*a, b.as_slice())},
+                    CodeRef::Ref(idx) => {
+                        let (a, b) = &self.code_object[idx];
+                        (*a, b.as_slice())
+                    }
                     CodeRef::NoCodeFor(idx) => {
                         const EMPTY: &[u8] = &[];
                         (self.code_object[idx].0, EMPTY)
-                    },
+                    }
                 };
                 // println!("{line_no:03} BEFORE {pc:08X}");
                 pc = addr;

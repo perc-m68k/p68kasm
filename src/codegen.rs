@@ -200,7 +200,8 @@ fn get_mode_reg_extra_for_ea<M: SymbolMap, F: Display>(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum SmallSize {
-    B,W
+    B,
+    W,
 }
 
 fn small_size_to_enum(p: &Pair<Rule>) -> SmallSize {
@@ -216,7 +217,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
     pc: u32,
     symbols: &M,
     current_file: &F,
-    dry_run: bool
+    dry_run: bool,
 ) -> Vec<u8> {
     match p.as_rule() {
         Rule::LEA => todo!(),
@@ -292,16 +293,22 @@ fn code_for_instr<M: SymbolMap, F: Display>(
         Rule::BRA => todo!(),
         Rule::BSR => {
             if dry_run {
-                vec![0,0,0,0]
-            }else{
+                vec![0, 0, 0, 0]
+            } else {
                 // let span = p.as_span();
                 let mut inner = p.into_inner();
-                let _ = inner.next().unwrap().into_inner().next().map(|p| small_size_to_enum(&p)).unwrap_or(SmallSize::W);
+                let _ = inner
+                    .next()
+                    .unwrap()
+                    .into_inner()
+                    .next()
+                    .map(|p| small_size_to_enum(&p))
+                    .unwrap_or(SmallSize::W);
                 // println!("BSR {size:?}");
                 let symbol = inner.next().unwrap();
                 let symbol_value = symbols.get(symbol.as_str()).expect("label to jump to") as i32;
                 // println!("jump to {symbol_value:08X} from {pc:08X}");
-                let disp = (((symbol_value - ((pc+4) as i32)) as u32) as u16) as i16;
+                let disp = (((symbol_value - ((pc + 4) as i32)) as u32) as u16) as i16;
                 // if size == SmallSize::B && (disp < i8::MIN as i16) && (disp > i8::MAX as i16) {
                 //     let pos = span.start_pos().line_col();
                 //     println!("[WARN] Cant do a byte bsr, label is too far away, using a word jump [{current_file}:{}:{}]", pos.0, pos.1);
@@ -315,7 +322,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 // println!("OPCODE {opcode:02X?}");
                 opcode
             }
-        },
+        }
         Rule::JMP => todo!(),
         Rule::JSR => todo!(),
         Rule::NOP => 0b0100111001110001u16.to_be_bytes().to_vec(),
