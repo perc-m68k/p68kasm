@@ -1,0 +1,82 @@
+00000000                                     1  * ======== ESTABLECER SSP y PC
+00000000                                     2  	ORG $0
+00000000  00008000                           3  	DC.L    $8000           * Pila
+00000004  00000400                           4  	DC.L    MAIN            * PC
+00000008                                     5  
+0000003C                                     6  	ORG		$3C
+0000003C  00000498                           7  	DC.L 	IND_ERROR		* Interrupt not defined handler
+00000040                                     8  
+00000080                                     9  	ORG		$80
+00000080  00000462                          10  	DC.L 	TRAP0			* TRAP 0 handler
+00000084                                    11  
+00000400                                    12  	ORG     $400 			* Nos saltamos todas las direcciones de vectores de interrupcion
+00000400                                    13  
+00000400                                    14  MAIN:
+00000400  46FC 2000                         15  	MOVE #$2000,SR
+00000404  4879 00000432                     16  	PEA PROG1
+0000040A  6100 0006                         17  	BSR CS_UMODE
+0000040E  4848                              18  	BREAK
+00000410  4E71                              19  	NOP
+00000412                                    20  
+00000412                                    21  CS_UMODE:
+00000412  4E56 0000                         22  	LINK A6,#0
+00000416  4879 0000042E                     23  	PEA CS_URET
+0000041C  4E67                              24  	MOVE A7,USP
+0000041E  206E 0008                         25  	MOVE.L 8(A6),A0
+00000422  027C DFFF                         26  	ANDI.W #%1101111111111111,SR
+00000426  9FFC 00000008                     27  	SUBA.L #8,A7
+0000042C  4ED0                              28  	JMP (A0)
+0000042E                                    29  CS_URET:
+0000042E  4E5E                              30  	UNLK A6
+00000430  4E75                              31  	RTS
+00000432                                    32  
+00000432                                    33  PROG1: 
+00000432  4879 00000446                     34  	PEA PROG2
+00000438  6100 001E                         35  	BSR CALL
+0000043C  2F3C 00000069                     36  	MOVE.L #$69,-(A7)
+00000442  6100 000C                         37  	BSR EXIT
+00000446                                    38  
+00000446                                    39  PROG2: 
+00000446  2F3C 00000420                     40  	MOVE.L #$420,-(A7)
+0000044C  6100 0002                         41  	BSR EXIT
+00000450                                    42  
+00000450                                    43  EXIT:
+00000450  222F 0004                         44  	MOVE.L 4(A7),D1
+00000454  7000                              45  	MOVE.L #0,D0
+00000456  4E40                              46  	TRAP #0
+00000458                                    47  
+00000458                                    48  CALL:
+00000458  222F 0004                         49  	MOVE.L 4(A7),D1
+0000045C  7001                              50  	MOVE.L #1,D0
+0000045E  4E40                              51  	TRAP #0
+00000460  4E75                              52  	RTS
+00000462                                    53  
+00000462                                    54  TRAP0:
+00000462  B0BC 00000000                     55  	CMP.L #0,D0
+00000468  6600 000E                         56  	BNE STN1
+0000046C  2001                              57  	MOVE.L D1,D0
+0000046E  5C8F                              58  	ADD.L #6,A7
+00000470  2C4F                              59  	MOVE.L A7,A6
+00000472  588E                              60  	ADD.L #4,A6
+00000474  2057                              61  	MOVE.L (A7),A0
+00000476  4ED0                              62  	JMP (A0)
+00000478                                    63  STN1:
+00000478  B0BC 00000001                     64  	CMP.L #1,D0
+0000047E  6600 0016                         65  	BNE STN2
+00000482  204F                              66  	MOVE.L A7,A0
+00000484  4E6F                              67  	MOVE USP,A7
+00000486  2F08                              68  	MOVE.L A0,-(A7)
+00000488  2F01                              69  	MOVE.L D1,-(A7)
+0000048A  6186                              70  	BSR CS_UMODE
+0000048C  508F                              71  	ADD.L #8,A7
+0000048E  4E67                              72  	MOVE A7,USP
+00000490  2E6F FFFC                         73  	MOVE.L -4(A7),A7
+00000494  4E73                              74  	RTE
+00000496                                    75  STN2:
+00000496  4E73                              76  	RTE
+00000498                                    77  
+00000498                                    78  IND_ERROR:
+00000498  4848                              79  	BREAK
+
+No errors detected
+No warnings generated

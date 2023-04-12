@@ -140,9 +140,10 @@ fn run_passes<'a>(
 
                         new_span
                     })
-                    .filter(|line| !line.as_str().is_empty())
+                    .filter(|line| !line.as_str().trim_end().is_empty())
                     .with_last()
                 {
+                    // println!("{line:?}");
                     if last {
                         global_data.listing.add(
                             current_file.path,
