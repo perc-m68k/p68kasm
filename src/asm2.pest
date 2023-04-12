@@ -179,7 +179,10 @@ ADDI = { ADDI_mnemonic ~ immediate_data ~ "," ~ dst_ea }
 
 // TODO ADDQ
 // TODO ADDX
-// TODO CLR
+CLR_mnemonic = ${ ^"CLR" ~ int_size? }
+
+/// Format: `01000010[SIZE 3][EA [MODE 3][REG 3]]`
+CLR = { CLR_mnemonic ~ dst_ea }
 
 CMP_mnemonic = ${ ^"CMP" ~ int_size? }
 
@@ -232,7 +235,7 @@ SUBI = { SUBI_mnemonic ~ immediate_data ~ "," ~ dst_ea }
 // TODO SUBQ
 // TODO SUBX
 
-int_arithmetic_instr = _{ADD | ADDA | ADDI | CMP | CMPA | CMPI | SUB | SUBA | SUBI}
+int_arithmetic_instr = _{ADD | ADDA | ADDI | CLR | CMP | CMPA | CMPI | SUB | SUBA | SUBI}
 
 // TODO LOGICAL instr
 
@@ -334,4 +337,4 @@ program = {SOI ~ statement* ~ EOI}
 
 EOL        = @{ NEWLINE | &EOI }
 WHITESPACE = _{ " " | "\t" | NEWLINE }
-COMMENT    = _{ ("*" | ";") ~ (!EOL ~ ANY)* ~ EOL }
+COMMENT    = _{ ("*" | ";") ~ (!EOL ~ ANY)* ~ &EOL }

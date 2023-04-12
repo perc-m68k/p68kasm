@@ -1,0 +1,21 @@
+
+===================================================== example_asm/example.s ======================================================
+
+00000000                                     1  
+00000000                                     2  	ORG	$0
+00000000                                     3  	DC.L	$8000          * Stack pointer value after a reset
+00000000                                     4  	DC.L	START          * Program counter value after a reset
+00000000                                     5  
+00000000                                     6  
+00000000                                     7  	ORG	$2000		*Start at location 2000 Hex
+00000000                                     8  
+00000000                                     9  START	CLR.W	(SUM)		*Clear variable SUM
+00000000                                    10  	MOVE.W	(COUNT),D0	*Load COUNT value
+00000000                                    11  LOOP	ADD.W	D0,(SUM)		*ADD D0 to SUM
+00000000                                    12  	SUB.W	#1,D0		*Decrement counter
+00000000                                    13  	BNE	LOOP		*Loop if counter not zero
+00000000                                    14  	BREAK			*Tell the simulator to BREAK if we're running
+00000000                                    15  
+00000000                                    16  SUM	DS.W	1		*Reserve one word for SUM
+00000000                                    17  COUNT	DC.W	25		*Initial value for COUNT
+00000000                                    18  

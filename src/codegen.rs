@@ -132,14 +132,6 @@ impl Default for IntSize {
 }
 
 impl IntSize {
-    pub const fn as_u8(&self) -> u8 {
-        match self {
-            Self::B => 0b01,
-            Self::W => 0b11,
-            Self::L => 0b10,
-        }
-    }
-
     pub const fn aligned(&self, pc: u32) -> Option<u32> {
         let m = pc % (*self as u32);
         if m == 0 {
@@ -180,8 +172,18 @@ fn get_mode_reg_extra_for_ea<M: SymbolMap, F: Display>(
         Rule::address_indirect_postinc => todo!(),
         Rule::address_indirect_predecr => todo!(),
         Rule::address_indirect_disp => todo!(),
-        Rule::absolute_short => todo!(),
-        Rule::absolute_long => todo!(),
+        Rule::absolute_short => {
+            let value = parse_expression(p.into_inner(), symbols, current_file);
+            (
+                0b111,
+                0b001,
+                ((value & 0xFFFF) as u16).to_be_bytes().to_vec(),
+            )
+        }
+        Rule::absolute_long => {
+            let value = parse_expression(p.into_inner(), symbols, current_file);
+            (0b111, 0b001, value.to_be_bytes().to_vec())
+        }
         Rule::immediate_data => {
             let value = parse_expression(p.into_inner(), symbols, current_file);
             (
@@ -253,7 +255,11 @@ fn code_for_instr<M: SymbolMap, F: Display>(
             let (dst_mode, dst_reg, dst_extra) =
                 get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
             // println!("MOVE.{size:?} {src_mode:03b} {src_reg:03b} {src_extra:02x?} {dst_mode:03b} {dst_reg:03b} {dst_extra:02x?}");
-            let mut v = (((size.as_u8() as u16) << 12)
+            let mut v = ((match size {
+                IntSize::B => 0b01,
+                IntSize::W => 0b11,
+                IntSize::L => 0b10,
+            } << 12)
                 | ((dst_reg as u16) << 9)
                 | ((dst_mode as u16) << 6)
                 | ((src_mode as u16) << 3)
@@ -283,6 +289,30 @@ fn code_for_instr<M: SymbolMap, F: Display>(
         Rule::ADD => todo!(),
         Rule::ADDA => todo!(),
         Rule::ADDI => todo!(),
+        Rule::CLR => {
+            let mut inner = p.into_inner();
+            let size = inner
+                .next()
+                .unwrap()
+                .into_inner()
+                .next()
+                .map(|p| int_size_to_enum(&p))
+                .unwrap_or_default();
+            let (dst_mode, dst_reg, dst_extra) =
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+            let size = match size {
+                IntSize::B => 0b00,
+                IntSize::W => 0b01,
+                IntSize::L => 0b10,
+            };
+            #[allow(clippy::unusual_byte_groupings)]
+            let mut res =
+                (0b01000010_00_000000u16 | size << 6 | ((dst_mode as u16) << 3) | (dst_reg as u16))
+                    .to_be_bytes()
+                    .to_vec();
+            res.extend_from_slice(&dst_extra);
+            res
+        }
         Rule::CMP => todo!(),
         Rule::CMPA => todo!(),
         Rule::CMPI => todo!(),
