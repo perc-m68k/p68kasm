@@ -132,7 +132,7 @@ impl<'a> Record<'a> {
     pub fn split_max_len(self) -> Box<dyn Iterator<Item = Record<'a>> + 'a> {
         match self {
             Record::S1(addr, code) => {
-                let max_size =( 80 - (2 + 2 + 4 + 2))/2;
+                let max_size = (80 - (2 + 2 + 4 + 2)) / 2;
                 if code.len() > max_size {
                     let (a, b) = code.split(max_size);
                     let addr_b = addr as u32 + a.len() as u32;
@@ -143,7 +143,7 @@ impl<'a> Record<'a> {
                 }
             }
             Record::S2(addr, code) => {
-                let max_size = (80 - (2 + 2 + 6 + 2))/2;
+                let max_size = (80 - (2 + 2 + 6 + 2)) / 2;
                 if code.len() > max_size {
                     let (a, b) = code.split(max_size);
                     let addr_b = addr + a.len() as u32;
@@ -154,7 +154,7 @@ impl<'a> Record<'a> {
                 }
             }
             Record::S3(addr, code) => {
-                let max_size = (80 - (2 + 2 + 8 + 2))/2;
+                let max_size = (80 - (2 + 2 + 8 + 2)) / 2;
                 if code.len() > max_size {
                     let (a, b) = code.split(max_size);
                     let addr_b = addr + a.len() as u32;

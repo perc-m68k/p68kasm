@@ -298,7 +298,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .next()
                 .map(|p| int_size_to_enum(&p))
                 .unwrap_or_default();
-            
+
             let (src_mode, src_reg, src_extra) =
                 get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
             let reg_no: u16 = inner
@@ -310,7 +310,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .as_str()
                 .parse()
                 .unwrap();
-            
+
             let mut v = ((match size {
                 IntSize::B => 0b01,
                 IntSize::W => 0b11,
@@ -324,7 +324,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .to_vec();
             v.extend_from_slice(&src_extra);
             v
-        },
+        }
         Rule::MOVEM => todo!(),
         Rule::PEA => {
             let size = IntSize::L;
@@ -384,7 +384,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .to_vec();
             opcode.extend_from_slice(&src_extra);
             opcode
-        },
+        }
         Rule::ADDI => todo!(),
         Rule::CLR => {
             let mut inner = p.into_inner();
@@ -451,13 +451,15 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .map(|p| int_size_to_enum(&p))
                 .unwrap_or_default();
             let value = parse_expression(inner.next().unwrap().into_inner(), symbols, current_file);
-            let (mode, reg, extra) = get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+            let (mode, reg, extra) =
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
             let bits_size = match size {
                 IntSize::B => 0b00,
                 IntSize::W => 0b01,
-                IntSize::L => 0b10
+                IntSize::L => 0b10,
             };
-            let opcode = 0b0000110000000000u16 | (bits_size << 6) | ((mode as u16) << 3) | (reg as u16);
+            let opcode =
+                0b0000110000000000u16 | (bits_size << 6) | ((mode as u16) << 3) | (reg as u16);
             let mut res = opcode.to_be_bytes().to_vec();
             match size {
                 IntSize::B => res.extend_from_slice(&((value as u16) & 0xFF).to_be_bytes()),
@@ -466,7 +468,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
             }
             res.extend_from_slice(&extra);
             res
-        },
+        }
         Rule::SUB => todo!(),
         Rule::SUBA => {
             let mut inner = p.into_inner();
@@ -604,7 +606,9 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 get_mode_reg_extra_for_ea(inner.next().unwrap(), IntSize::L, symbols, current_file);
             // let reg_no: u8 = inner.next().unwrap().into_inner().next().unwrap().as_str().parse().unwrap();
             // println!("JMP [{src_mode:03b} {src_reg:03b} {src_extra:02X?}]");
-            let mut bytes = (0b0100111011000000 | ((src_mode as u16) << 3) | (src_reg as u16)).to_be_bytes().to_vec();
+            let mut bytes = (0b0100111011000000 | ((src_mode as u16) << 3) | (src_reg as u16))
+                .to_be_bytes()
+                .to_vec();
             bytes.extend_from_slice(&src_extra);
             bytes
         }
@@ -625,17 +629,42 @@ fn code_for_instr<M: SymbolMap, F: Display>(
             ]
         }
         Rule::MOVE_to_SR => {
-            let (src_mode, src_reg, src_extra) = get_mode_reg_extra_for_ea(p.into_inner().next().unwrap(), IntSize::W, symbols, current_file);
-            let mut res = (0b0100011011000000u16 | ((src_mode as u16)<< 3) | (src_reg as u16)).to_be_bytes().to_vec();
+            let (src_mode, src_reg, src_extra) = get_mode_reg_extra_for_ea(
+                p.into_inner().next().unwrap(),
+                IntSize::W,
+                symbols,
+                current_file,
+            );
+            let mut res = (0b0100011011000000u16 | ((src_mode as u16) << 3) | (src_reg as u16))
+                .to_be_bytes()
+                .to_vec();
             res.extend_from_slice(&src_extra);
             res
         }
         Rule::MOVE_to_USP => {
-            let reg_no: u16 = p.into_inner().next().unwrap().into_inner().next().unwrap().as_str().parse().unwrap();
+            let reg_no: u16 = p
+                .into_inner()
+                .next()
+                .unwrap()
+                .into_inner()
+                .next()
+                .unwrap()
+                .as_str()
+                .parse()
+                .unwrap();
             (0b0100111001100000 | reg_no).to_be_bytes().to_vec()
         }
         Rule::MOVE_from_USP => {
-            let reg_no: u16 = p.into_inner().next().unwrap().into_inner().next().unwrap().as_str().parse().unwrap();
+            let reg_no: u16 = p
+                .into_inner()
+                .next()
+                .unwrap()
+                .into_inner()
+                .next()
+                .unwrap()
+                .as_str()
+                .parse()
+                .unwrap();
             (0b0100111001101000 | reg_no).to_be_bytes().to_vec()
         }
         Rule::RTE => 0b0100111001110011u16.to_be_bytes().to_vec(),
