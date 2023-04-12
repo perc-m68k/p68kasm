@@ -88,7 +88,7 @@ absolute_short = ${ "(" ~ expression ~ ^").W" }
 /// EA Mode = 111
 /// EA Reg field = 001
 /// No. extension words = 2 (high addr, low addr)
-absolute_long = ${ ("(" ~ expression ~ ^").L") | ("(" ~ expression ~ ^")") }
+absolute_long = ${ ("(" ~ expression ~ ^").L") | ("(" ~ expression ~ ^")") | expression }
 
 /// Immediate Data
 /// EA Mode = 111
@@ -96,8 +96,8 @@ absolute_long = ${ ("(" ~ expression ~ ^").L") | ("(" ~ expression ~ ^")") }
 /// No. extension words = 1,2,4, or 6
 immediate_data = ${ "#" ~ expression }
 
-src_ea    = _{ absolute_short | absolute_long | Dn | An | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr | immediate_data }
-dst_ea    = _{ absolute_short | absolute_long | Dn | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr }
+src_ea    = _{ Dn | An | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr | immediate_data | absolute_short | absolute_long }
+dst_ea    = _{ Dn | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr | absolute_short | absolute_long }
 word_size =  { ^".W" | ^".L" }
 int_size  = @{ ^".B" | word_size }
 Rn        =  { An | Dn }

@@ -1,0 +1,80 @@
+* ======== ESTABLECER SSP y PC
+	ORG $0
+	DC.L    $8000           * Pila
+	DC.L    MAIN            * PC
+
+	ORG		$3C
+	DC.L 	IND_ERROR		* Interrupt not defined handler
+
+	ORG		$80
+	DC.L 	TRAP0			* TRAP 0 handler
+
+	ORG     $400 			* Nos saltamos todas las direcciones de vectores de interrupcion
+
+MAIN:
+	MOVE #$2000,SR
+	PEA PROG1
+	BSR CS_UMODE
+	BREAK
+	NOP
+
+CS_UMODE:
+	LINK A6,#0
+	PEA CS_URET
+	MOVE A7,USP
+	MOVE.L 8(A6),A0
+	ANDI.W #%1101111111111111,SR
+	SUBA.L #8,A7
+	JMP (A0)
+CS_URET:
+	UNLK A6
+	RTS
+
+PROG1: 
+	PEA PROG2
+	BSR CALL
+	MOVE.L #$69,-(A7)
+	BSR EXIT
+
+PROG2: 
+	MOVE.L #$420,-(A7)
+	BSR EXIT
+
+EXIT:
+	MOVE.L 4(A7),D1
+	MOVE.L #0,D0
+	TRAP #0
+
+CALL:
+	MOVE.L 4(A7),D1
+	MOVE.L #1,D0
+	TRAP #0
+	RTS
+
+TRAP0:
+	CMP.L #0,D0
+	BNE STN1
+	MOVE.L D1,D0
+	ADD.L #6,A7
+	MOVE.L A7,A6
+	ADD.L #4,A6
+	MOVE.L (A7),A0
+	JMP (A0)
+STN1:
+	CMP.L #1,D0
+	BNE STN2
+	MOVE.L A7,A0
+	MOVE USP,A7
+	MOVE.L A0,-(A7)
+	MOVE.L D1,-(A7)
+	BSR CS_UMODE
+	ADD.L #8,A7
+	MOVE A7,USP
+	MOVE.L -4(A7),A7
+	RTE
+STN2:
+	RTE
+
+IND_ERROR:
+	BREAK
+	NOP
