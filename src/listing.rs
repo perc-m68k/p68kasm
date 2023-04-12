@@ -47,13 +47,18 @@ impl Display for PrintableListing<'_> {
         writeln!(f)?;
         writeln!(f, "{:=^130}", Spaced(self.file.display()).to_string())?;
         writeln!(f)?;
+        println!("{}", self.file.display());
         let mut pc = 0u32;
         for (line_no, line) in self.file_str.lines().enumerate().map(|(i, x)| (i + 1, x)) {
+
             let code = if let Some(&idx) = self.listing.0.get(&(self.file, line_no)) {
                 let (addr, code) = &self.code_object[idx];
+                println!("{line_no:03} BEFORE {pc:08X}");
                 pc = *addr;
+                println!("{line_no:03}  AFTER {pc:08X}");
                 Some(code)
             } else {
+                println!("{line_no:03} NO CODE");
                 None
             };
             let len = code.as_ref().map(|x| x.len()).unwrap_or(0);

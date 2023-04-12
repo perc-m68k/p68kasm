@@ -245,17 +245,71 @@ int_arithmetic_instr = _{ADD | ADDA | ADDI | CMP | CMPA | CMPI | SUB | SUBA | SU
 // TODO Binary coded decimal instructions
 
 // =================================== Program control =========================
-
+/// # Conditionals
+/// * T* True 0000 1
+/// * F * False 0001 0
+/// * HI High 0010 C Λ Z
+/// * LS Low or Same 0011 C V Z
+/// * CC(HI) Carry Clear 0100 C
+/// * CS(LO) Carry Set 0101 C
+/// * NE Not Equal 0110 Z
+/// * EQ Equal 0111 Z
+/// * VC Overflow Clear 1000 V
+/// * VS Overflow Set 1001 V
+/// * PL Plus 1010 N
+/// * MI Minus 1011 N
+/// * GE Greater or Equal 1100 N Λ V V N Λ V
+/// * LT Less Than 1101 N Λ V V N Λ V
+/// * GT Greater Than 1110 N Λ V Λ Z V N Λ V Λ Z
+/// * LE Less or Equal 1111 Z V N Λ V V N Λ V
+/// [^note]: *Not available for the Bcc instruction.
 cc = { ^"CC" | ^"LS" | ^"CS" | ^"LT" | ^"EQ" | ^"MI" | ^"F" | ^"NE" | ^"GE" | ^"PL" | ^"GT" | ^"T" | ^"HI" | ^"VC" | ^"LE" | ^"VS" }
+bcc_cc = { ^"CC" | ^"LS" | ^"CS" | ^"LT" | ^"EQ" | ^"MI"  | ^"NE" | ^"GE" | ^"PL" | ^"GT"  | ^"HI" | ^"VC" | ^"LE" | ^"VS" }
 small_size = { ^".B" | ^".W" }
 
-Bcc_mnemonic = ${ ^"B" ~ cc ~ small_size?}
-// 
+Bcc_mnemonic = ${ ^"B" ~ bcc_cc ~ small_size?}
+/// Format: 0110[COND 4][8-BIT-DISP 8] [16-BIT-DISP 16]? [32-BIT-DISP 16]?
+///
+/// 8-BIT-DISP: 0x00 -> 16 bit disp  
+/// 8-BIT-DISP: 0xff -> 32 bit disp
+/// [^note]: A branch to the immediately following instruction automatically uses the 16-bit displacement format because the 8-bit displacement field contains $00 (zero offset).
 Bcc = {Bcc_mnemonic ~ symbol }
+// TODO FBcc
+// TODO DBcc & FDBcc
+// TODO Scc & FScc
+BRA_mnemonic = ${ ^"BRA"/* ~ small_size?*/ }
+/// FORMAT: 01100000[8-BIT-DISP 8] [16-BIT-DISP 16]? [32-BIT-DISP 16]?
+///
+/// 8-BIT-DISP: 0x00 -> 16 bit disp  
+/// 8-BIT-DISP: 0xff -> 32 bit disp
+/// [^note]: A branch to the immediately following instruction automatically uses the 16-bit displacement format because the 8-bit displacement field contains $00 (zero offset).
+BRA = { BRA_mnemonic ~ symbol }
+BSR_mnemonic = ${ ^"BSR"/* ~ small_size?*/ }
+/// FORMAT: 01100001[8-BIT-DISP 8] [16-BIT-DISP 16]? [32-BIT-DISP 16]?
+///
+/// 8-BIT-DISP: 0x00 -> 16 bit disp  
+/// 8-BIT-DISP: 0xff -> 32 bit disp
+/// [^note]: A branch to the immediately following instruction automatically uses the 16-bit displacement format because the 8-bit displacement field contains $00 (zero offset).
+BSR = { BSR_mnemonic ~ symbol }
+/// FORMAT: 0100111011[EA [MODE 3][REG 3]]
+JMP = { ^"JMP" ~  (address_indirect | address_indirect_disp | absolute_short | absolute_long)}
+/// FORMAT: 0100111010[EA [MODE 3][REG 3]]
+JSR = { ^"JSR" ~  (address_indirect | address_indirect_disp | absolute_short | absolute_long)}
+/// FORMAT: 0100111001110001
+NOP = { ^"NOP" }
+// TODO FNOP
+// TODO RTD
+// TODO RTR = { ^"RTR" }
+/// FORMAT: 0100111001110101
+RTS = { ^"RTS" }
+// TODO TST F& FTST
 
+// =================================== System control =========================
+// TODO
 
+program_control_instr = _{ Bcc | BRA | BSR | JMP | JSR | NOP | RTS }
 
-instr = _{data_movement_instr | int_arithmetic_instr}
+instr = _{data_movement_instr | int_arithmetic_instr | program_control_instr }
 sol_label = ${ symbol ~ ":"? }
 instruction =  { (!instr ~ sol_label)? ~ instr }
 

@@ -1,10 +1,10 @@
-use std::{borrow::Cow, collections::HashMap, fs::File, io::Write, path::{Path, PathBuf}, rc::Rc};
+use std::{borrow::Cow, collections::HashMap, fs::File, io::Write, path::{Path, PathBuf}};
 
 use args::Config;
 use clap::Parser as ArgsParser;
 use codegen::{code_for_statement, statements, symbols::NonFailingMap};
 use parser::{ASMParser, Rule};
-use pest::{iterators::Pairs, Parser};
+use pest::{iterators::Pairs, Parser, Span};
 use typed_arena::Arena;
 
 use crate::{args::Args, codegen::srec::SRec, listing::Listing};
@@ -32,6 +32,7 @@ fn run_passes<'a>(
 ) -> u32 {
     let statements = statements(x);
     let mut pc = pc_og;
+    let mut include_end_addr = Vec::new();
     for s in statements.clone() {
         if s.as_rule() == Rule::include {
             let include_str = s.into_inner().next().unwrap().as_str().trim_end();
@@ -46,7 +47,8 @@ fn run_passes<'a>(
             files.push(current);
             match ASMParser::parse(Rule::program, file_str) {
                 Ok(x) => {
-                    pc = run_passes(x, pc, file, arena, files, listing, symbols, code_object, create_listing)
+                    pc = run_passes(x, pc, file, arena, files, listing, symbols, code_object, create_listing);
+                    include_end_addr.push(pc);
                 }
                 Err(e) => println!("{} {e}", file.display()),
             }
@@ -54,7 +56,7 @@ fn run_passes<'a>(
         } else {
             // let span = s.as_span();
             let (label, start_addr, code) =
-                code_for_statement(s, pc, &NonFailingMap(&*symbols), &file.display());
+                code_for_statement(s, pc, &NonFailingMap(&*symbols), &file.display(), true);
             pc = start_addr.unwrap_or(pc);
             if let Some(label) = label {
                 let label_span = label.into_inner().next().unwrap();
@@ -76,22 +78,38 @@ fn run_passes<'a>(
         }
     }
     // println!("{symbols:#?}");
+    let mut include_end_addr = include_end_addr.into_iter();
     pc = pc_og;
     for s in statements {
+        // println!("{pc:08X} RULE {:?}", s.as_rule());
         if s.as_rule() == Rule::include {
+            // println!("PC BEFORE: {pc:X}");
+            pc = include_end_addr.next().unwrap_or(pc);
+            // println!("PC: {pc:X}");
         } else {
             let span = s.as_span();
-            let (_, start_addr, code) = code_for_statement(s, pc, &*symbols, &file.display());
+            let (_, start_addr, code) = code_for_statement(s, pc, &*symbols, &file.display(), false);
             pc = start_addr.unwrap_or(pc);
             let code_len = code.len();
             let idx = code_object.len();
+            println!("{pc:08X} {code:02X?}");
             code_object.push((pc, code));
             if create_listing {
+                for line in span.lines_span().filter(|a| !a.as_str().trim_end().is_empty()) {
+                    let line_end = if line.start_pos().line_col().0 == span.end_pos().line_col().0 {
+                        span.end_pos()
+                    }else{
+                        line.end_pos()
+                    };
+                    span.
+                    println!("{:03} {line:?} ", line.start_pos().line_col().0);
+                }
                 listing.add(file, span.start_pos().line_col().0, idx);
             }
             pc += code_len as u32;
         }
     }
+    // println!("{} {pc_og:X}->{pc:X}", file.display());
     pc
 }
 

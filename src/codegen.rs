@@ -13,6 +13,7 @@ pub fn code_for_statement<'a, M: SymbolMap, F: Display>(
     pc: u32,
     symbols: &M,
     current_file: &F,
+    dry_run: bool,
 ) -> (Option<Pair<'a, Rule>>, Option<u32>, Vec<u8>) {
     match p.as_rule() {
         Rule::instruction => {
@@ -32,7 +33,7 @@ pub fn code_for_statement<'a, M: SymbolMap, F: Display>(
             (
                 label,
                 IntSize::W.aligned(pc),
-                code_for_instr(instr, symbols, current_file),
+                code_for_instr(instr, pc, symbols, current_file, dry_run),
             )
         }
         Rule::org => {
@@ -197,10 +198,25 @@ fn get_mode_reg_extra_for_ea<M: SymbolMap, F: Display>(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum SmallSize {
+    B,W
+}
+
+fn small_size_to_enum(p: &Pair<Rule>) -> SmallSize {
+    match p.as_span().as_str().to_uppercase().as_str() {
+        ".B" => SmallSize::B,
+        ".W" => SmallSize::W,
+        _ => unreachable!(),
+    }
+}
+
 fn code_for_instr<M: SymbolMap, F: Display>(
     p: Pair<Rule>,
+    pc: u32,
     symbols: &M,
     current_file: &F,
+    dry_run: bool
 ) -> Vec<u8> {
     match p.as_rule() {
         Rule::LEA => todo!(),
@@ -263,8 +279,48 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .unwrap();
             (0b0100111001011000u16 | (an as u16)).to_be_bytes().to_vec()
         }
-
-        _ => unreachable!(),
+        Rule::ADD => todo!(),
+        Rule::ADDA => todo!(),
+        Rule::ADDI => todo!(),
+        Rule::CMP => todo!(),
+        Rule::CMPA => todo!(),
+        Rule::CMPI => todo!(),
+        Rule::SUB => todo!(),
+        Rule::SUBA => todo!(),
+        Rule::SUBI => todo!(),
+        Rule::Bcc => todo!(),
+        Rule::BRA => todo!(),
+        Rule::BSR => {
+            if dry_run {
+                vec![0,0,0,0]
+            }else{
+                // let span = p.as_span();
+                let mut inner = p.into_inner();
+                let _ = inner.next().unwrap().into_inner().next().map(|p| small_size_to_enum(&p)).unwrap_or(SmallSize::W);
+                // println!("BSR {size:?}");
+                let symbol = inner.next().unwrap();
+                let symbol_value = symbols.get(symbol.as_str()).expect("label to jump to") as i32;
+                // println!("jump to {symbol_value:08X} from {pc:08X}");
+                let disp = (((symbol_value - ((pc+4) as i32)) as u32) as u16) as i16;
+                // if size == SmallSize::B && (disp < i8::MIN as i16) && (disp > i8::MAX as i16) {
+                //     let pos = span.start_pos().line_col();
+                //     println!("[WARN] Cant do a byte bsr, label is too far away, using a word jump [{current_file}:{}:{}]", pos.0, pos.1);
+                //     disp -= 2;
+                // }else if size == SmallSize::W {
+                //     disp -= 2;
+                // }
+                // println!("DISP {disp}");
+                let mut opcode = 0b01100001_0000_0000u16.to_be_bytes().to_vec();
+                opcode.extend_from_slice(&disp.to_be_bytes());
+                // println!("OPCODE {opcode:02X?}");
+                opcode
+            }
+        },
+        Rule::JMP => todo!(),
+        Rule::JSR => todo!(),
+        Rule::NOP => 0b0100111001110001u16.to_be_bytes().to_vec(),
+        Rule::RTS => 0b0100111001110101u16.to_be_bytes().to_vec(),
+        x => unreachable!("{x:?}"),
     }
 }
 
