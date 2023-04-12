@@ -235,7 +235,7 @@ SUBI = { SUBI_mnemonic ~ immediate_data ~ "," ~ dst_ea }
 // TODO SUBQ
 // TODO SUBX
 
-int_arithmetic_instr = _{ADD | ADDA | ADDI | CLR | CMPA | CMPI | CMP | SUB | SUBA | SUBI}
+int_arithmetic_instr = _{ ADD | ADDA | ADDI | CLR | CMPA | CMPI | CMP | SUB | SUBA | SUBI }
 
 // TODO LOGICAL instr
 
@@ -267,6 +267,7 @@ int_arithmetic_instr = _{ADD | ADDA | ADDI | CLR | CMPA | CMPI | CMP | SUB | SUB
 /// * LE Less or Equal 1111 Z V N Λ V V N Λ V
 /// [^note]: *Not available for the Bcc instruction.
 cc = { ^"CC" | ^"LS" | ^"CS" | ^"LT" | ^"EQ" | ^"MI" | ^"F" | ^"NE" | ^"GE" | ^"PL" | ^"GT" | ^"T" | ^"HI" | ^"VC" | ^"LE" | ^"VS" }
+
 /// # Conditionals
 /// * HI High 0010 C Λ Z
 /// * LS Low or Same 0011 C V Z
@@ -282,10 +283,11 @@ cc = { ^"CC" | ^"LS" | ^"CS" | ^"LT" | ^"EQ" | ^"MI" | ^"F" | ^"NE" | ^"GE" | ^"
 /// * LT Less Than 1101 N Λ V V N Λ V
 /// * GT Greater Than 1110 N Λ V Λ Z V N Λ V Λ Z
 /// * LE Less or Equal 1111 Z V N Λ V V N Λ Vç
-bcc_cc = { ^"CC" | ^"LS" | ^"CS" | ^"LT" | ^"EQ" | ^"MI"  | ^"NE" | ^"GE" | ^"PL" | ^"GT"  | ^"HI" | ^"VC" | ^"LE" | ^"VS" }
+bcc_cc     = { ^"CC" | ^"LS" | ^"CS" | ^"LT" | ^"EQ" | ^"MI" | ^"NE" | ^"GE" | ^"PL" | ^"GT" | ^"HI" | ^"VC" | ^"LE" | ^"VS" }
 small_size = { ^".B" | ^".W" }
 
-Bcc_mnemonic = ${ ^"B" ~ bcc_cc ~ small_size?}
+Bcc_mnemonic = ${ ^"B" ~ bcc_cc ~ small_size? }
+
 /// Format: 0110[COND 4][8-BIT-DISP 8] [16-BIT-DISP 16]? [32-BIT-DISP 16]?
 ///
 /// 8-BIT-DISP: 0x00 -> 16 bit disp
@@ -293,28 +295,37 @@ Bcc_mnemonic = ${ ^"B" ~ bcc_cc ~ small_size?}
 /// 8-BIT-DISP: 0xff -> 32 bit disp
 ///
 /// [^note]: A branch to the immediately following instruction automatically uses the 16-bit displacement format because the 8-bit displacement field contains $00 (zero offset).
-Bcc = {Bcc_mnemonic ~ symbol }
+Bcc = { Bcc_mnemonic ~ symbol }
 // TODO FBcc
 // TODO DBcc & FDBcc
 // TODO Scc & FScc
-BRA_mnemonic = ${ ^"BRA"/* ~ small_size?*/ }
+BRA_mnemonic = ${
+    ^"BRA" /* ~ small_size? */
+}
+
 /// FORMAT: 01100000[8-BIT-DISP 8] [16-BIT-DISP 16]? [32-BIT-DISP 16]?
 ///
-/// 8-BIT-DISP: 0x00 -> 16 bit disp  
+/// 8-BIT-DISP: 0x00 -> 16 bit disp
 /// 8-BIT-DISP: 0xff -> 32 bit disp
 /// [^note]: A branch to the immediately following instruction automatically uses the 16-bit displacement format because the 8-bit displacement field contains $00 (zero offset).
 BRA = { BRA_mnemonic ~ symbol }
-BSR_mnemonic = ${ ^"BSR"/* ~ small_size?*/ }
+
+BSR_mnemonic = ${ ^"BSR" /* ~ small_size? */
+ }
+
 /// FORMAT: 01100001[8-BIT-DISP 8] [16-BIT-DISP 16]? [32-BIT-DISP 16]?
 ///
-/// 8-BIT-DISP: 0x00 -> 16 bit disp  
+/// 8-BIT-DISP: 0x00 -> 16 bit disp
 /// 8-BIT-DISP: 0xff -> 32 bit disp
 /// [^note]: A branch to the immediately following instruction automatically uses the 16-bit displacement format because the 8-bit displacement field contains $00 (zero offset).
 BSR = { BSR_mnemonic ~ symbol }
+
 /// FORMAT: 0100111011[EA [MODE 3][REG 3]]
-JMP = { ^"JMP" ~  (address_indirect | address_indirect_disp | absolute_short | absolute_long)}
+JMP = { ^"JMP" ~ (address_indirect | address_indirect_disp | absolute_short | absolute_long) }
+
 /// FORMAT: 0100111010[EA [MODE 3][REG 3]]
-JSR = { ^"JSR" ~  (address_indirect | address_indirect_disp | absolute_short | absolute_long)}
+JSR = { ^"JSR" ~ (address_indirect | address_indirect_disp | absolute_short | absolute_long) }
+
 /// FORMAT: 0100111001110001
 NOP = { ^"NOP" }
 // TODO FNOP
@@ -328,32 +339,33 @@ program_control_instr = _{ Bcc | BRA | BSR | JMP | JSR | NOP | RTS }
 
 // =================================== System control =========================
 /// Format: `0000001001111100 // 16-bit data`
-ANDI_to_SR = {(^"ANDI.W" | ^"ANDI") ~ immediate_data ~","~^"SR"}
+ANDI_to_SR = { (^"ANDI.W" | ^"ANDI") ~ immediate_data ~ "," ~ ^"SR" }
 // TODO EORI to SR
 // TODO FRESTORE to SR
 // TODO FSAVE to SR
 /// Format: `0100011011[EA [MODE 3][REG 3]]`
-MOVE_to_SR = { (^"MOVE.W" | ^"MOVE") ~ (!An ~ src_ea) ~"," ~ ^"SR"}
+MOVE_to_SR = { (^"MOVE.W" | ^"MOVE") ~ (!An ~ src_ea) ~ "," ~ ^"SR" }
 // TODO MOVE from SR
 /// Format: `0100111001100[REG 3]`
-MOVE_to_USP = { (^"MOVE.L" | ^"MOVE") ~ An ~"," ~ ^"USP" }
+MOVE_to_USP = { (^"MOVE.L" | ^"MOVE") ~ An ~ "," ~ ^"USP" }
+
 /// Format: `0100111001101[REG 3]`
-MOVE_from_USP = { (^"MOVE.L" | ^"MOVE") ~ ^"USP" ~"," ~ An }
+MOVE_from_USP = { (^"MOVE.L" | ^"MOVE") ~ ^"USP" ~ "," ~ An }
 // TODO MOVEC
 // TODO MOVES
 // TODO ORI to SR
 // TODO RESET
-/// Format: `0100111001110011` 
-RTE = {^"RTE"}
+/// Format: `0100111001110011`
+RTE = { ^"RTE" }
 // TODO STOP
 /// Format: `0100100001001[VECTOR 3]`
 ///
 /// If BREAK, Vector is 0
-BKPT = {(^"BKPT" ~ immediate_data) | ^"BREAK"}
+BKPT = { (^"BKPT" ~ immediate_data) | ^"BREAK" }
 // TODO CHK, CHK2
 // TODO ILLEGAL
-/// Format: `010011100100[VECTOR 4]` 
-TRAP = {^"TRAP" ~ immediate_data }
+/// Format: `010011100100[VECTOR 4]`
+TRAP = { ^"TRAP" ~ immediate_data }
 // TODO TRAPcc, FTRAPcc, TRAPV
 // TODO ANDI to CCR
 // TODO EORI to CCR
@@ -363,8 +375,8 @@ TRAP = {^"TRAP" ~ immediate_data }
 
 system_control_instr = _{ ANDI_to_SR | MOVE_to_SR | MOVE_to_USP | MOVE_from_USP | RTE | BKPT | TRAP }
 
-instr = _{system_control_instr | data_movement_instr | int_arithmetic_instr | program_control_instr }
-sol_label = ${ symbol ~ ":"? }
+instr       = _{ system_control_instr | data_movement_instr | int_arithmetic_instr | program_control_instr }
+sol_label   = ${ symbol ~ ":"? }
 instruction =  { (!instr ~ sol_label)? ~ instr }
 
 // PSEUDOINSTR
@@ -381,10 +393,10 @@ define_storage =  { (ds_mnemonic | (sol_label ~ ds_mnemonic)) ~ expression }
 include_file = @{ (!EOL ~ ANY)* ~ EOL }
 include      =  { ^"INCLUDE" ~ include_file }
 
-pseudo_instr = _{include | org | equ | define_constant | define_storage}
+pseudo_instr = _{ include | org | equ | define_constant | define_storage }
 
-statement = {pseudo_instr | instruction}
-program = {SOI ~ statement* ~ EOI}
+statement = { pseudo_instr | instruction }
+program   = { SOI ~ statement* ~ EOI }
 
 EOL        = @{ NEWLINE | &EOI }
 WHITESPACE = _{ " " | "\t" | NEWLINE }
