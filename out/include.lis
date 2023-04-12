@@ -1,21 +1,21 @@
 
-==================================================== .\example_asm\include.s =====================================================
+===================================================== example_asm/include.s ======================================================
 
 00000000                                     1  ORG	$0
-00000000  0000 8000                          2  	DC.L	$8000          * Stack pointer value after a reset
-00000004  0000 2000                          3  	DC.L	START          * Program counter value after a reset
-00000008                                     4  
+00000000                                     2  	DC.L	$8000          * Stack pointer value after a reset
+00000004                                     3  	DC.L	START          * Program counter value after a reset
+00000004                                     4  
 00002000                                     5  	ORG	$2000		*Start at location 2000 Hex
-00002000  6100 0006                          6  START:
-00002004                                     7  	BSR fn1
+00002000                                     6  START:
+00002000  6100 0006                          7  	BSR fn1
 00002004  303C 000B                          8  	MOVE #11,D0
 00002008  4E71                               9  	NOP
 0000200A                                    10  INCLUDE include_extra.s
 00002016  4E71                              11  	NOP
 
-================================================= .\example_asm\include_extra.s ==================================================
+================================================== example_asm/include_extra.s ===================================================
 
-0000200A  4E56 0000                          1  fn1: LINK A6,#0
+0000200A                                     1  fn1: LINK A6,#0
 0000200E  103C 0069                          2  	 MOVE.B #$69,D0
 00002012  4E5E                               3  	 UNLK A6
 00002014  4E75                               4  	 RTS

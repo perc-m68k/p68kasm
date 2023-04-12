@@ -1,7 +1,13 @@
 use std::{collections::HashMap, fmt::Display, path::Path};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CodeRef {
+    Ref(usize),
+    NoCodeFor(usize),
+}
+
 #[derive(Debug, Default, Clone)]
-pub struct Listing<'a>(HashMap<(&'a Path, usize), usize>);
+pub struct Listing<'a>(HashMap<(&'a Path, usize), CodeRef>);
 
 impl<'a> Listing<'a> {
     pub fn new() -> Self {
@@ -9,7 +15,11 @@ impl<'a> Listing<'a> {
     }
 
     pub fn add(&mut self, file: &'a Path, line: usize, code_idx: usize) {
-        self.0.insert((file, line), code_idx);
+        self.0.insert((file, line), CodeRef::Ref(code_idx));
+    }
+
+    pub fn add_no_code(&mut self, file: &'a Path, line: usize, addr_idx: usize) {
+        self.0.insert((file, line), CodeRef::NoCodeFor(addr_idx));
     }
 
     pub const fn printable<'b>(
@@ -47,18 +57,24 @@ impl Display for PrintableListing<'_> {
         writeln!(f)?;
         writeln!(f, "{:=^130}", Spaced(self.file.display()).to_string())?;
         writeln!(f)?;
-        println!("{}", self.file.display());
+        // println!("{}", self.file.display());
         let mut pc = 0u32;
         for (line_no, line) in self.file_str.lines().enumerate().map(|(i, x)| (i + 1, x)) {
 
             let code = if let Some(&idx) = self.listing.0.get(&(self.file, line_no)) {
-                let (addr, code) = &self.code_object[idx];
-                println!("{line_no:03} BEFORE {pc:08X}");
-                pc = *addr;
-                println!("{line_no:03}  AFTER {pc:08X}");
+                let (addr, code) = match idx {
+                    CodeRef::Ref(idx) => {let (a, b) = &self.code_object[idx]; (*a, b.as_slice())},
+                    CodeRef::NoCodeFor(idx) => {
+                        const EMPTY: &[u8] = &[];
+                        (self.code_object[idx].0, EMPTY)
+                    },
+                };
+                // println!("{line_no:03} BEFORE {pc:08X}");
+                pc = addr;
+                // println!("{line_no:03}  AFTER {pc:08X}");
                 Some(code)
             } else {
-                println!("{line_no:03} NO CODE");
+                // println!("{line_no:03} NO CODE");
                 None
             };
             let len = code.as_ref().map(|x| x.len()).unwrap_or(0);
