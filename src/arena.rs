@@ -24,7 +24,7 @@ impl<'a> FileArena<'a> {
         }
     }
 
-    pub fn add_contents<'b: 'a, C: Into<Cow<'a, Path>>>(
+    fn add_contents<'b: 'a, C: Into<Cow<'a, Path>>>(
         &'b self,
         path: C,
         contents: String,
@@ -35,6 +35,21 @@ impl<'a> FileArena<'a> {
         });
         self.files.borrow_mut().push(res);
         (&res.file, res.contents.as_str())
+    }
+
+    pub fn add<'b: 'a, C: Into<Cow<'a, Path>>>(
+        &'b self,
+        path: C,
+    ) -> std::io::Result<(&'a Path, &'a str)> {
+        let path = path.into();
+        let contents = std::fs::read_to_string(&path)?;
+        Ok(self.add_contents(path, contents))
+    }
+}
+
+impl<'a> Default for FileArena<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

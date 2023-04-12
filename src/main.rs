@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     collections::HashMap,
     fs::File,
     io::Write,
@@ -12,7 +11,6 @@ use clap::Parser as ArgsParser;
 use codegen::{code_for_statement, statements, symbols::NonFailingMap};
 use parser::{ASMParser, Rule};
 use pest::{iterators::Pairs, Parser};
-use typed_arena::Arena;
 
 use crate::{args::Args, codegen::srec::SRec, listing::Listing, utils::IteratorExt};
 
@@ -52,8 +50,8 @@ fn run_passes<'a>(
             if include_path.is_relative() {
                 include_path = current_file.path.parent().unwrap().join(include_path)
             }
-            let string = std::fs::read_to_string(&include_path).unwrap();
-            let (file, file_str) = global_data.arena.add_contents(include_path, string);
+            // let string = std::fs::read_to_string(&include_path).unwrap();
+            let (file, file_str) = global_data.arena.add(include_path).unwrap();
             // let current = &*global_data.arena.alloc(FileAndContents::<'a> { file: include_path.into(), contents: string });
             // let file = &current.file;
             // let file_str = &current.contents;
@@ -170,10 +168,7 @@ fn run_passes<'a>(
 
 fn run(conf: &Config) {
     let arena = FileArena::new();
-    let (file, file_str) = arena.add_contents(
-        &conf.input_file,
-        std::fs::read_to_string(&conf.input_file).unwrap(),
-    );
+    let (file, file_str) = arena.add(&conf.input_file).unwrap();
 
     // let file = &initial.file;
     // let file_str = &initial.contents;
