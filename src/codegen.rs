@@ -241,6 +241,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
     dry_run: bool,
 ) -> Vec<u8> {
     match p.as_rule() {
+        // Data movement
         Rule::LEA => todo!(),
         Rule::LINK => {
             let mut inner = p.into_inner();
@@ -351,6 +352,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .unwrap();
             (0b0100111001011000u16 | (an as u16)).to_be_bytes().to_vec()
         }
+        // Integer arithmetic
         Rule::ADD => todo!(),
         Rule::ADDA => {
             let mut inner = p.into_inner();
@@ -504,6 +506,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
             opcode
         }
         Rule::SUBI => todo!(),
+        // Program control
         Rule::Bcc => {
             if dry_run {
                 vec![0, 0, 0, 0]
@@ -615,6 +618,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
         Rule::JSR => todo!(),
         Rule::NOP => 0b0100111001110001u16.to_be_bytes().to_vec(),
         Rule::RTS => 0b0100111001110101u16.to_be_bytes().to_vec(),
+        // System control
         Rule::ANDI_to_SR => {
             let value = parse_expression(
                 p.into_inner().next().unwrap().into_inner(),

@@ -235,7 +235,7 @@ SUBI = { SUBI_mnemonic ~ immediate_data ~ "," ~ dst_ea }
 // TODO SUBQ
 // TODO SUBX
 
-int_arithmetic_instr = _{ ADD | ADDA | ADDI | CLR | CMPA | CMPI | CMP | SUB | SUBA | SUBI }
+int_arithmetic_instr = _{ ADDA | ADDI | ADD | CLR | CMPA | CMPI | CMP | SUBA | SUBI | SUB }
 
 // TODO LOGICAL instr
 
