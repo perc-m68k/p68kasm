@@ -1,6 +1,8 @@
-use std::fmt::Display;
-
-use crate::parser::{parse_expression, Rule};
+use crate::{
+    error::{map_op_bin, SymbolResult},
+    file::File,
+    parser::{parse_expression, Rule},
+};
 use pest::iterators::{Pair, Pairs};
 
 use self::symbols::SymbolMap;
@@ -8,14 +10,32 @@ use self::symbols::SymbolMap;
 pub mod srec;
 pub mod symbols;
 
-pub fn code_for_statement<'a, M: SymbolMap, F: Display>(
+type CodeResult<'code, 'file, T = ()> = SymbolResult<'code, T, &'file File<'code>>;
+
+pub struct Statement<'code> {
+    pub label: Option<Pair<'code, Rule>>,
+    pub start_addr: Option<u32>,
+    pub code: Vec<u8>,
+}
+
+impl<'a> From<(Option<Pair<'a, Rule>>, Option<u32>, Vec<u8>)> for Statement<'a> {
+    fn from((label, start_addr, code): (Option<Pair<'a, Rule>>, Option<u32>, Vec<u8>)) -> Self {
+        Self {
+            label,
+            start_addr,
+            code,
+        }
+    }
+}
+
+pub fn code_for_statement<'a, 'b, M: SymbolMap>(
     p: Pair<'a, Rule>,
     pc: u32,
     symbols: &M,
-    current_file: &F,
+    current_file: &'b File<'a>,
     dry_run: bool,
-) -> (Option<Pair<'a, Rule>>, Option<u32>, Vec<u8>) {
-    match p.as_rule() {
+) -> CodeResult<'a, 'b, Statement<'a>> {
+    Ok(match p.as_rule() {
         Rule::instruction => {
             let mut inner = p.into_inner();
             let mut label = inner.next();
@@ -30,11 +50,11 @@ pub fn code_for_statement<'a, M: SymbolMap, F: Display>(
                     }
                 })
                 .unwrap();
-            (
+            Statement {
                 label,
-                IntSize::W.aligned(pc),
-                code_for_instr(instr, pc, symbols, current_file, dry_run),
-            )
+                start_addr: IntSize::W.aligned(pc),
+                code: code_for_instr(instr, pc, symbols, current_file, dry_run)?,
+            }
         }
         Rule::org => {
             let mut inner = p.into_inner();
@@ -50,8 +70,8 @@ pub fn code_for_statement<'a, M: SymbolMap, F: Display>(
                     }
                 })
                 .unwrap();
-            let expr = parse_expression(expr.into_inner(), symbols.get_failing(), current_file);
-            (label, Some(expr as u32), vec![])
+            let expr = parse_expression(expr.into_inner(), symbols.get_failing(), current_file)?;
+            (label, Some(expr as u32), vec![]).into()
         }
         Rule::equ => todo!(),
         Rule::define_constant => {
@@ -74,28 +94,28 @@ pub fn code_for_statement<'a, M: SymbolMap, F: Display>(
                 .unwrap_or_default();
             let mut res = Vec::new();
             for x in inner {
-                data_for_item(size, x, symbols, current_file, &mut res);
+                data_for_item(size, x, symbols, current_file, &mut res)?;
             }
-            (label, size.aligned(pc), res)
+            (label, size.aligned(pc), res).into()
         }
         Rule::define_storage => todo!(),
         _ => unreachable!(),
-    }
+    })
 }
 
-fn data_for_item<M: SymbolMap, F: Display>(
+fn data_for_item<'a, 'b, M: SymbolMap>(
     size: IntSize,
-    pair: Pair<Rule>,
+    pair: Pair<'b, Rule>,
     symbols: &M,
-    current_file: &F,
+    current_file: &'a File<'b>,
     data: &mut Vec<u8>,
-) {
+) -> CodeResult<'b, 'a> {
     match pair.as_rule() {
         Rule::string => todo!(),
         Rule::expression => {
             let span = pair.as_span();
             let start_pos = span.start_pos().line_col();
-            let value = parse_expression(pair.into_inner(), symbols, current_file) as u32;
+            let value = parse_expression(pair.into_inner(), symbols, current_file)? as u32;
             match size {
                 IntSize::B => {
                     if value > 0xff {
@@ -114,7 +134,8 @@ fn data_for_item<M: SymbolMap, F: Display>(
             }
         }
         _ => unreachable!(),
-    }
+    };
+    Ok(())
 }
 
 #[repr(u8)]
@@ -151,13 +172,13 @@ fn int_size_to_enum(p: &Pair<Rule>) -> IntSize {
     }
 }
 
-fn get_mode_reg_extra_for_ea<M: SymbolMap, F: Display>(
-    p: Pair<Rule>,
+fn get_mode_reg_extra_for_ea<'a, 'b, M: SymbolMap>(
+    p: Pair<'b, Rule>,
     size: IntSize,
     symbols: &M,
-    current_file: &F,
-) -> (u8, u8, Vec<u8>) {
-    match p.as_rule() {
+    current_file: &'a File<'b>,
+) -> CodeResult<'b, 'a, (u8, u8, Vec<u8>)> {
+    Ok(match p.as_rule() {
         Rule::Dn => (
             0b000,
             p.into_inner().next().unwrap().as_str().parse().unwrap(),
@@ -187,12 +208,12 @@ fn get_mode_reg_extra_for_ea<M: SymbolMap, F: Display>(
             // dbg!(&p);
             let mut inner = p.into_inner();
             let d16 = inner.next().unwrap();
-            let disp = parse_expression(d16.into_inner(), symbols, current_file) as u16;
+            let disp = parse_expression(d16.into_inner(), symbols, current_file)? as u16;
             let reg_no = inner.next().unwrap().as_str().parse::<u8>().unwrap();
             (0b101, reg_no & 0b111, disp.to_be_bytes().to_vec())
         }
         Rule::absolute_short => {
-            let value = parse_expression(p.into_inner(), symbols, current_file);
+            let value = parse_expression(p.into_inner(), symbols, current_file)?;
             (
                 0b111,
                 0b001,
@@ -200,11 +221,11 @@ fn get_mode_reg_extra_for_ea<M: SymbolMap, F: Display>(
             )
         }
         Rule::absolute_long => {
-            let value = parse_expression(p.into_inner(), symbols, current_file);
+            let value = parse_expression(p.into_inner(), symbols, current_file)?;
             (0b111, 0b001, value.to_be_bytes().to_vec())
         }
         Rule::immediate_data => {
-            let value = parse_expression(p.into_inner(), symbols, current_file);
+            let value = parse_expression(p.into_inner(), symbols, current_file)?;
             (
                 0b111,
                 0b100,
@@ -216,7 +237,7 @@ fn get_mode_reg_extra_for_ea<M: SymbolMap, F: Display>(
             )
         }
         _ => unreachable!(),
-    }
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -233,14 +254,14 @@ fn small_size_to_enum(p: &Pair<Rule>) -> SmallSize {
     }
 }
 
-fn code_for_instr<M: SymbolMap, F: Display>(
-    p: Pair<Rule>,
+fn code_for_instr<'a, 'b, M: SymbolMap>(
+    p: Pair<'b, Rule>,
     pc: u32,
     symbols: &M,
-    current_file: &F,
+    current_file: &'a File<'b>,
     dry_run: bool,
-) -> Vec<u8> {
-    match p.as_rule() {
+) -> CodeResult<'b, 'a, Vec<u8>> {
+    Ok(match p.as_rule() {
         // Data movement
         Rule::LEA => todo!(),
         Rule::LINK => {
@@ -255,7 +276,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .parse::<u8>()
                 .unwrap();
             let data =
-                parse_expression(inner.next().unwrap().into_inner(), symbols, current_file) as u16;
+                parse_expression(inner.next().unwrap().into_inner(), symbols, current_file)? as u16;
             let opcode = 0b0100111001010000 | (an as u16);
             let mut res = opcode.to_be_bytes().to_vec();
             res.extend_from_slice(&data.to_be_bytes());
@@ -270,10 +291,15 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .next()
                 .map(|p| int_size_to_enum(&p))
                 .unwrap_or_default();
-            let (src_mode, src_reg, src_extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
-            let (dst_mode, dst_reg, dst_extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+            let ((src_mode, src_reg, src_extra), (dst_mode, dst_reg, dst_extra)) = map_op_bin(
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file),
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file),
+                |a, b| (a, b),
+            )?;
+            // let (src_mode, src_reg, src_extra) =
+            //     get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+            // let (dst_mode, dst_reg, dst_extra) =
+            //     get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
             // println!("MOVE.{size:?} {src_mode:03b} {src_reg:03b} {src_extra:02x?} {dst_mode:03b} {dst_reg:03b} {dst_extra:02x?}");
             let mut v = ((match size {
                 IntSize::B => 0b01,
@@ -301,7 +327,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .unwrap_or_default();
 
             let (src_mode, src_reg, src_extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file)?;
             let reg_no: u16 = inner
                 .next()
                 .unwrap()
@@ -331,7 +357,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
             let size = IntSize::L;
             let mut inner = p.into_inner();
             let (src_mode, src_reg, src_extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file)?;
             #[allow(clippy::unusual_byte_groupings)]
             let mut res = (0b0100100001_000_000u16 | (src_mode as u16) << 3 | (src_reg as u16))
                 .to_be_bytes()
@@ -364,7 +390,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .map(|p| int_size_to_enum(&p))
                 .unwrap_or_default();
             let (src_mode, src_reg, src_extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file)?;
             let reg_no: u8 = inner
                 .next()
                 .unwrap()
@@ -398,7 +424,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .map(|p| int_size_to_enum(&p))
                 .unwrap_or_default();
             let (dst_mode, dst_reg, dst_extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file)?;
             let size = match size {
                 IntSize::B => 0b00,
                 IntSize::W => 0b01,
@@ -423,7 +449,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .map(|p| int_size_to_enum(&p))
                 .unwrap_or_default();
             let (src_mode, src_reg, src_extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file)?;
             let reg_no: u16 = inner
                 .next()
                 .unwrap()
@@ -452,9 +478,10 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .next()
                 .map(|p| int_size_to_enum(&p))
                 .unwrap_or_default();
-            let value = parse_expression(inner.next().unwrap().into_inner(), symbols, current_file);
+            let value =
+                parse_expression(inner.next().unwrap().into_inner(), symbols, current_file)?;
             let (mode, reg, extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file)?;
             let bits_size = match size {
                 IntSize::B => 0b00,
                 IntSize::W => 0b01,
@@ -482,7 +509,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 .map(|p| int_size_to_enum(&p))
                 .unwrap_or_default();
             let (src_mode, src_reg, src_extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file);
+                get_mode_reg_extra_for_ea(inner.next().unwrap(), size, symbols, current_file)?;
             let reg_no: u8 = inner
                 .next()
                 .unwrap()
@@ -605,8 +632,12 @@ fn code_for_instr<M: SymbolMap, F: Display>(
             //     .next()
             //     .map(|p| int_size_to_enum(&p))
             //     .unwrap_or_default();
-            let (src_mode, src_reg, src_extra) =
-                get_mode_reg_extra_for_ea(inner.next().unwrap(), IntSize::L, symbols, current_file);
+            let (src_mode, src_reg, src_extra) = get_mode_reg_extra_for_ea(
+                inner.next().unwrap(),
+                IntSize::L,
+                symbols,
+                current_file,
+            )?;
             // let reg_no: u8 = inner.next().unwrap().into_inner().next().unwrap().as_str().parse().unwrap();
             // println!("JMP [{src_mode:03b} {src_reg:03b} {src_extra:02X?}]");
             let mut bytes = (0b0100111011000000 | ((src_mode as u16) << 3) | (src_reg as u16))
@@ -624,7 +655,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 p.into_inner().next().unwrap().into_inner(),
                 symbols,
                 current_file,
-            ) as u16;
+            )? as u16;
             vec![
                 0b00000010,
                 0b01111100,
@@ -638,7 +669,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 IntSize::W,
                 symbols,
                 current_file,
-            );
+            )?;
             let mut res = (0b0100011011000000u16 | ((src_mode as u16) << 3) | (src_reg as u16))
                 .to_be_bytes()
                 .to_vec();
@@ -677,6 +708,7 @@ fn code_for_instr<M: SymbolMap, F: Display>(
             let vector = inner
                 .next()
                 .map(|x| parse_expression(x.into_inner(), symbols, current_file))
+                .transpose()?
                 .unwrap_or(0) as u32;
             (0b0100100001001000 | ((vector & 0b111) as u16))
                 .to_be_bytes()
@@ -687,13 +719,13 @@ fn code_for_instr<M: SymbolMap, F: Display>(
                 p.into_inner().next().unwrap().into_inner(),
                 symbols,
                 current_file,
-            ) as u32;
+            )? as u32;
             (0b010011100100_0000 | ((value & 0b1111) as u16))
                 .to_be_bytes()
                 .to_vec()
         }
         x => unreachable!("{x:?}"),
-    }
+    })
 }
 
 pub fn statements(program: Pairs<Rule>) -> impl Iterator<Item = Pair<Rule>> + Clone {

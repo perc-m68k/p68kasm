@@ -8,7 +8,8 @@ use std::{
 use arena::FileArena;
 use args::Config;
 use clap::Parser as ArgsParser;
-use codegen::{code_for_statement, statements, symbols::NonFailingMap};
+use codegen::{code_for_statement, statements, symbols::NonFailingMap, Statement};
+use error::CodeError;
 use parser::{ASMParser, Rule};
 use pest::{iterators::Pairs, Parser};
 
@@ -17,6 +18,8 @@ use crate::{args::Args, codegen::srec::SRec, listing::Listing, utils::IteratorEx
 mod arena;
 mod args;
 mod codegen;
+mod error;
+mod file;
 mod listing;
 mod parser;
 mod utils;
@@ -39,7 +42,7 @@ fn run_passes<'a>(
     current_file: CurrentFile<'a>,
     global_data: &mut GlobalData<'a>,
     create_listing: bool,
-) -> u32 {
+) -> Result<u32, CodeError<'a>> {
     let statements = statements(current_file.pairs);
     let mut pc = current_file.entrypoint;
     let mut include_end_addr = Vec::new();
@@ -63,20 +66,25 @@ fn run_passes<'a>(
                         path: file,
                         entrypoint: pc,
                     };
-                    pc = run_passes(included_file, global_data, create_listing);
+                    pc = run_passes(included_file, global_data, create_listing)?;
                     include_end_addr.push(pc);
                 }
                 Err(e) => println!("{} {e}", file.display()),
             }
         } else {
             // let span = s.as_span();
-            let (label, start_addr, code) = code_for_statement(
+            let Statement {
+                label,
+                start_addr,
+                code,
+            } = code_for_statement(
                 s,
                 pc,
                 &NonFailingMap(&global_data.symbols),
-                &current_file.path.display(),
+                &current_file.path.into(),
                 true,
-            );
+            )
+            .unwrap();
             pc = start_addr.unwrap_or(pc);
             if let Some(label) = label {
                 let label_span = label.into_inner().next().unwrap();
@@ -108,13 +116,18 @@ fn run_passes<'a>(
             // println!("PC: {pc:X}");
         } else {
             let span = s.as_span();
-            let (_, start_addr, code) = code_for_statement(
+            let Statement {
+                label: _,
+                start_addr,
+                code,
+            } = code_for_statement(
                 s,
                 pc,
                 &global_data.symbols,
-                &current_file.path.display(),
+                &current_file.path.into(),
                 false,
-            );
+            )
+            .unwrap();
             pc = start_addr.unwrap_or(pc);
             let code_len = code.len();
             let idx = global_data.code_object.len();
@@ -164,7 +177,7 @@ fn run_passes<'a>(
         }
     }
     // println!("{} {pc_og:X}->{pc:X}", file.display());
-    pc
+    Ok(pc)
 }
 
 fn run(conf: &Config) {
@@ -194,7 +207,7 @@ fn run(conf: &Config) {
                 path: file,
             };
 
-            run_passes(current_file, &mut global_data, create_listing);
+            run_passes(current_file, &mut global_data, create_listing).unwrap();
         }
         Err(e) => println!("{} {e}", file.display()),
     }
