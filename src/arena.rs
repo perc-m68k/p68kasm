@@ -6,6 +6,8 @@ use std::{
 
 use typed_arena::Arena;
 
+use crate::file::FileRef;
+
 struct FileAndContents<'a> {
     file: Cow<'a, Path>,
     contents: String,
@@ -28,19 +30,16 @@ impl<'a> FileArena<'a> {
         &'b self,
         path: C,
         contents: String,
-    ) -> (&'a Path, &'a str) {
+    ) -> FileRef<'a> {
         let res = self.arena.alloc(FileAndContents {
             file: path.into(),
             contents,
         });
         self.files.borrow_mut().push(res);
-        (&res.file, res.contents.as_str())
+        FileRef::new(&res.file, res.contents.as_str())
     }
 
-    pub fn add<'b: 'a, C: Into<Cow<'a, Path>>>(
-        &'b self,
-        path: C,
-    ) -> std::io::Result<(&'a Path, &'a str)> {
+    pub fn add<'b: 'a, C: Into<Cow<'a, Path>>>(&'b self, path: C) -> std::io::Result<FileRef<'a>> {
         let path = path.into();
         let contents = std::fs::read_to_string(&path)?;
         Ok(self.add_contents(path, contents))

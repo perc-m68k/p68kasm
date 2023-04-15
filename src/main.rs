@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs::File,
     io::Write,
@@ -11,7 +12,7 @@ use clap::Parser as ArgsParser;
 use codegen::{code_for_statement, statements, symbols::NonFailingMap, Statement};
 use error::CodeError;
 use parser::{ASMParser, Rule};
-use pest::{iterators::Pairs, Parser};
+use pest::Parser;
 
 use crate::{args::Args, codegen::srec::SRec, listing::Listing, utils::IteratorExt};
 
@@ -26,8 +27,8 @@ mod utils;
 
 // #[derive(Debug, Clone)]
 struct CurrentFile<'a> {
-    pairs: Pairs<'a, Rule>,
-    path: &'a Path,
+    // pairs: Pairs<'a, Rule>,
+    path: Cow<'a, Path>,
     entrypoint: u32,
 }
 // #[derive(Debug, Clone, Copy)]
@@ -43,7 +44,12 @@ fn run_passes<'a>(
     global_data: &mut GlobalData<'a>,
     create_listing: bool,
 ) -> Result<u32, CodeError<'a>> {
-    let statements = statements(current_file.pairs);
+    let file = global_data.arena.add(current_file.path).unwrap();
+    let pairs = ASMParser::parse(Rule::program, file.str).map_err(|err| CodeError::Parse {
+        err: Box::new(err),
+        file,
+    })?;
+    let statements = statements(pairs);
     let mut pc = current_file.entrypoint;
     let mut include_end_addr = Vec::new();
     for s in statements.clone() {
@@ -51,40 +57,24 @@ fn run_passes<'a>(
             let include_str = s.into_inner().next().unwrap().as_str().trim_end();
             let mut include_path = PathBuf::from(include_str);
             if include_path.is_relative() {
-                include_path = current_file.path.parent().unwrap().join(include_path)
+                include_path = file.path.parent().unwrap().join(include_path)
             }
-            // let string = std::fs::read_to_string(&include_path).unwrap();
-            let (file, file_str) = global_data.arena.add(include_path).unwrap();
-            // let current = &*global_data.arena.alloc(FileAndContents::<'a> { file: include_path.into(), contents: string });
-            // let file = &current.file;
-            // let file_str = &current.contents;
-            // global_data.files.push(current);
-            match ASMParser::parse(Rule::program, file_str) {
-                Ok(x) => {
-                    let included_file = CurrentFile {
-                        pairs: x,
-                        path: file,
-                        entrypoint: pc,
-                    };
-                    pc = run_passes(included_file, global_data, create_listing)?;
-                    include_end_addr.push(pc);
-                }
-                Err(e) => println!("{} {e}", file.display()),
-            }
+            pc = run_passes(
+                CurrentFile {
+                    path: include_path.into(),
+                    entrypoint: pc,
+                },
+                global_data,
+                create_listing,
+            )?;
+            include_end_addr.push(pc);
         } else {
             // let span = s.as_span();
             let Statement {
                 label,
                 start_addr,
                 code,
-            } = code_for_statement(
-                s,
-                pc,
-                &NonFailingMap(&global_data.symbols),
-                &current_file.path.into(),
-                true,
-            )
-            .unwrap();
+            } = code_for_statement(s, pc, &NonFailingMap(&global_data.symbols), file, true)?;
             pc = start_addr.unwrap_or(pc);
             if let Some(label) = label {
                 let label_span = label.into_inner().next().unwrap();
@@ -95,7 +85,7 @@ fn run_passes<'a>(
                     let line_col = label_span.line_col();
                     panic!(
                         "Symbol `{label}` already defined ({}:{}:{})",
-                        current_file.path.display(),
+                        file.path.display(),
                         line_col.0,
                         line_col.1
                     )
@@ -120,14 +110,7 @@ fn run_passes<'a>(
                 label: _,
                 start_addr,
                 code,
-            } = code_for_statement(
-                s,
-                pc,
-                &global_data.symbols,
-                &current_file.path.into(),
-                false,
-            )
-            .unwrap();
+            } = code_for_statement(s, pc, &global_data.symbols, file, false)?;
             pc = start_addr.unwrap_or(pc);
             let code_len = code.len();
             let idx = global_data.code_object.len();
@@ -158,14 +141,12 @@ fn run_passes<'a>(
                 {
                     // println!("{line:?}");
                     if last {
-                        global_data.listing.add(
-                            current_file.path,
-                            line.start_pos().line_col().0,
-                            idx,
-                        );
+                        global_data
+                            .listing
+                            .add(file.path, line.start_pos().line_col().0, idx);
                     } else {
                         global_data.listing.add_no_code(
-                            current_file.path,
+                            file.path,
                             line.start_pos().line_col().0,
                             idx,
                         );
@@ -182,12 +163,12 @@ fn run_passes<'a>(
 
 fn run(conf: &Config) {
     let arena = FileArena::new();
-    let (file, file_str) = arena.add(&conf.input_file).unwrap();
+    // let (file, file_str) = arena.add(&conf.input_file).unwrap();
 
     // let file = &initial.file;
     // let file_str = &initial.contents;
     // let files = vec![&*initial];
-    let successful_parse = ASMParser::parse(Rule::program, file_str);
+    // let successful_parse = ASMParser::parse(Rule::program, file_str);
 
     let symbols = HashMap::<&str, u32>::new();
     let code_object = Vec::<(u32, Vec<u8>)>::new();
@@ -199,17 +180,17 @@ fn run(conf: &Config) {
         symbols,
         code_object,
     };
-    match successful_parse {
-        Ok(x) => {
-            let current_file = CurrentFile {
-                pairs: x,
-                entrypoint: 0,
-                path: file,
-            };
-
-            run_passes(current_file, &mut global_data, create_listing).unwrap();
+    if let Err(code) = run_passes(
+        CurrentFile {
+            path: conf.input_file.as_path().into(),
+            entrypoint: 0,
+        },
+        &mut global_data,
+        create_listing,
+    ) {
+        for displayable in code.as_display(&|rule| format!("{rule:?}")) {
+            println!("{displayable}");
         }
-        Err(e) => println!("{} {e}", file.display()),
     }
     if let Some(listing_path) = &conf.listing {
         let mut f = File::create(listing_path).unwrap();

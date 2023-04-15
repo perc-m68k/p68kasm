@@ -1,6 +1,6 @@
 use crate::{
     error::{map_op_bin, SymbolResult},
-    file::File,
+    file::FileRef,
     parser::{parse_expression, Rule},
 };
 use pest::iterators::{Pair, Pairs};
@@ -10,7 +10,7 @@ use self::symbols::SymbolMap;
 pub mod srec;
 pub mod symbols;
 
-type CodeResult<'code, 'file, T = ()> = SymbolResult<'code, T, &'file File<'code>>;
+type CodeResult<'code, T = ()> = SymbolResult<'code, T>;
 
 pub struct Statement<'code> {
     pub label: Option<Pair<'code, Rule>>,
@@ -28,13 +28,13 @@ impl<'a> From<(Option<Pair<'a, Rule>>, Option<u32>, Vec<u8>)> for Statement<'a> 
     }
 }
 
-pub fn code_for_statement<'a, 'b, M: SymbolMap>(
+pub fn code_for_statement<'a, M: SymbolMap>(
     p: Pair<'a, Rule>,
     pc: u32,
     symbols: &M,
-    current_file: &'b File<'a>,
+    current_file: FileRef<'a>,
     dry_run: bool,
-) -> CodeResult<'a, 'b, Statement<'a>> {
+) -> CodeResult<'a, Statement<'a>> {
     Ok(match p.as_rule() {
         Rule::instruction => {
             let mut inner = p.into_inner();
@@ -103,13 +103,13 @@ pub fn code_for_statement<'a, 'b, M: SymbolMap>(
     })
 }
 
-fn data_for_item<'a, 'b, M: SymbolMap>(
+fn data_for_item<'b, M: SymbolMap>(
     size: IntSize,
     pair: Pair<'b, Rule>,
     symbols: &M,
-    current_file: &'a File<'b>,
+    current_file: FileRef<'b>,
     data: &mut Vec<u8>,
-) -> CodeResult<'b, 'a> {
+) -> CodeResult<'b> {
     match pair.as_rule() {
         Rule::string => todo!(),
         Rule::expression => {
@@ -119,13 +119,23 @@ fn data_for_item<'a, 'b, M: SymbolMap>(
             match size {
                 IntSize::B => {
                     if value > 0xff {
-                        eprintln!("expression @ {current_file}:{}:{} is bigger than expected (byte), truncating", start_pos.0, start_pos.1)
+                        eprintln!(
+                            "expression @ {}:{}:{} is bigger than expected (byte), truncating",
+                            current_file.path.display(),
+                            start_pos.0,
+                            start_pos.1
+                        )
                     }
                     data.push((value & 0xff) as u8);
                 }
                 IntSize::W => {
                     if value > 0xffff {
-                        eprintln!("expression @ {current_file}:{}:{} is bigger than expected (word), truncating", start_pos.0, start_pos.1)
+                        eprintln!(
+                            "expression @ {}:{}:{} is bigger than expected (word), truncating",
+                            current_file.path.display(),
+                            start_pos.0,
+                            start_pos.1
+                        )
                     }
                     data.push(((value & 0xff00) >> 8) as u8);
                     data.push((value & 0xff) as u8);
@@ -172,12 +182,12 @@ fn int_size_to_enum(p: &Pair<Rule>) -> IntSize {
     }
 }
 
-fn get_mode_reg_extra_for_ea<'a, 'b, M: SymbolMap>(
+fn get_mode_reg_extra_for_ea<'b, M: SymbolMap>(
     p: Pair<'b, Rule>,
     size: IntSize,
     symbols: &M,
-    current_file: &'a File<'b>,
-) -> CodeResult<'b, 'a, (u8, u8, Vec<u8>)> {
+    current_file: FileRef<'b>,
+) -> CodeResult<'b, (u8, u8, Vec<u8>)> {
     Ok(match p.as_rule() {
         Rule::Dn => (
             0b000,
@@ -254,13 +264,13 @@ fn small_size_to_enum(p: &Pair<Rule>) -> SmallSize {
     }
 }
 
-fn code_for_instr<'a, 'b, M: SymbolMap>(
+fn code_for_instr<'b, M: SymbolMap>(
     p: Pair<'b, Rule>,
     pc: u32,
     symbols: &M,
-    current_file: &'a File<'b>,
+    current_file: FileRef<'b>,
     dry_run: bool,
-) -> CodeResult<'b, 'a, Vec<u8>> {
+) -> CodeResult<'b, Vec<u8>> {
     Ok(match p.as_rule() {
         // Data movement
         Rule::LEA => todo!(),

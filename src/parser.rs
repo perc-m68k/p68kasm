@@ -8,7 +8,7 @@ use pest_derive::Parser;
 use crate::{
     codegen::symbols::SymbolMap,
     error::{map_op_bin, SymbolError},
-    file::File,
+    file::FileRef,
 };
 
 #[derive(Parser)]
@@ -26,11 +26,11 @@ static PRATT_PARSER: Lazy<PrattParser<Rule>> = Lazy::new(|| {
         .op(Op::prefix(Rule::neg_op) | Op::prefix(Rule::not_op))
 });
 
-pub fn parse_expression<'a, 'b, M: SymbolMap>(
+pub fn parse_expression<'b, M: SymbolMap>(
     pairs: Pairs<'b, Rule>,
     symbols: &M,
-    current_file: &'a File<'b>,
-) -> Result<i32, Vec<SymbolError<'b, &'a File<'b>>>> {
+    current_file: FileRef<'b>,
+) -> Result<i32, Vec<SymbolError<'b>>> {
     PRATT_PARSER
         .map_primary(|primary| match primary.as_rule() {
             Rule::expression => parse_expression(primary.into_inner(), symbols, current_file),
