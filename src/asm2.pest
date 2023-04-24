@@ -126,14 +126,6 @@ MOVEA_mnemonic = ${ (^"MOVEA" | ^"MOVE") ~ word_size? }
 /// [^note]: Allows for use with MOVE Mnemonic
 MOVEA = { MOVEA_mnemonic ~ src_ea ~ "," ~ An }
 
-// /// Format 0100001011[SRC [MODE 3][REG 3]]
-// MOVE_FROM_CCR = { ^"MOVE" ~ ^"CCR" ~ "," ~ dst_ea }
-
-// /// Format 0100010011[SRC [MODE 3][REG 3]]
-// MOVE_TO_CCR = { ^"MOVE" ~ src_ea ~ "," ~ ^"CCR" }
-
-// /// Format 0100000011[SRC [MODE 3][REG 3]]
-// MOVE_FROM_SR = { ^"MOVE" ~ ^"SR" ~ "," ~ dst_ea }
 
 MOVEM_mnemonic = ${ ^"MOVEM" ~ word_size? }
 
