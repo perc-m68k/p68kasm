@@ -100,7 +100,7 @@ src_ea    = _{ Dn | An | address_indirect | address_indirect_disp | address_indi
 dst_ea    = _{ Dn | address_indirect | address_indirect_disp | address_indirect_postinc | address_indirect_predecr | absolute_short | absolute_long }
 word_size =  { ^".W" | ^".L" }
 int_size  = @{ ^".B" | word_size }
-Rn        =  { An | Dn }
+// Rn        =  { An | Dn }
 // FIXME floating point
 
 // ============================ Data movement instructions ==================================================================================================
@@ -126,9 +126,9 @@ MOVEA_mnemonic = ${ (^"MOVEA" | ^"MOVE") ~ word_size? }
 /// [^note]: Allows for use with MOVE Mnemonic
 MOVEA = { MOVEA_mnemonic ~ src_ea ~ "," ~ An }
 
-
 MOVEM_mnemonic = ${ ^"MOVEM" ~ word_size? }
 
+/// FIXME
 /// Format: `00[SIZE 2][DSTREG 3]001[SRC [MODE 3][REG 3]]`
 MOVEM = {
     MOVEM_mnemonic ~ ((reglist ~ "," ~ (address_indirect | address_indirect_predecr | address_indirect_disp | absolute_short | absolute_long)) | ((address_indirect | address_indirect_postinc | address_indirect_disp | absolute_short | absolute_long) ~ "," ~ reglist))
@@ -302,8 +302,9 @@ BRA_mnemonic = ${
 /// [^note]: A branch to the immediately following instruction automatically uses the 16-bit displacement format because the 8-bit displacement field contains $00 (zero offset).
 BRA = { BRA_mnemonic ~ symbol }
 
-BSR_mnemonic = ${ ^"BSR" /* ~ small_size? */
- }
+BSR_mnemonic = ${
+    ^"BSR" /* ~ small_size? */
+}
 
 /// FORMAT: 01100001[8-BIT-DISP 8] [16-BIT-DISP 16]? [32-BIT-DISP 16]?
 ///
